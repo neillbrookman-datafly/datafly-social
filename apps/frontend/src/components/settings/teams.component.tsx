@@ -176,8 +176,11 @@ export const TeamsComponent = () => {
         <div className="flex flex-col gap-[16px]">
           {(data || []).map((p) => (
             <div key={p.user.id} className="flex items-center">
-              <div className="flex-1">
-                {capitalize(p.user.email.split('@')[0]).split('.')[0]}
+              <div className="flex-1 flex flex-col">
+                <div>{capitalize(p.user.email.split('@')[0]).split('.')[0]}</div>
+                <div className="text-[12px] text-textItemBlur">
+                  {p.user.email}
+                </div>
               </div>
               <div className="flex-1">
                 {p.role === 'USER'
