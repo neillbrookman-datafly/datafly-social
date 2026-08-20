@@ -263,7 +263,7 @@ export const DayView = () => {
 
   // Set dayjs locale based on current language
   const currentLanguage = i18next.resolvedLanguage || 'en';
-  dayjs.locale(currentLanguage);
+  dayjs.locale(currentLanguage === 'en' ? 'en-gb' : currentLanguage);
 
   const currentDay = dayjs.utc(startDate);
 
@@ -345,7 +345,7 @@ export const WeekView = () => {
   // Use dayjs to get localized day names
   const localizedDays = useMemo(() => {
     const currentLanguage = i18next.resolvedLanguage || 'en';
-    dayjs.locale(currentLanguage);
+    dayjs.locale(currentLanguage === 'en' ? 'en-gb' : currentLanguage);
 
     const days = [];
     const weekStart = newDayjs(startDate);
@@ -417,7 +417,7 @@ export const MonthView = () => {
   // Use dayjs to get localized day names
   const localizedDays = useMemo(() => {
     const currentLanguage = i18next.resolvedLanguage || 'en';
-    dayjs.locale(currentLanguage);
+    dayjs.locale(currentLanguage === 'en' ? 'en-gb' : currentLanguage);
 
     const days = [];
     // Starting from Monday (1) to Sunday (7)
