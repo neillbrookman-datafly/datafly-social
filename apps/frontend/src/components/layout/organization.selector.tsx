@@ -6,8 +6,31 @@ import useSWR from 'swr';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import clsx from 'clsx';
 
-const OrgAvatar: FC<{ name?: string }> = ({ name }) => (
-  <div className="w-[20px] h-[20px] min-w-[20px] rounded-[6px] bg-btnPrimary text-white text-[11px] font-[600] flex items-center justify-center uppercase">
+const AVATAR_COLORS = [
+  '#00c98d', // datafly green
+  '#0ea5e9', // sky
+  '#8b5cf6', // violet
+  '#f97316', // orange
+  '#ec4899', // pink
+  '#6080a0', // slate
+  '#f59e0b', // amber
+  '#14b8a6', // teal
+];
+
+const orgColor = (seed?: string) => {
+  const s = seed || '';
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
+const OrgAvatar: FC<{ name?: string; id?: string }> = ({ name, id }) => (
+  <div
+    className="w-[20px] h-[20px] min-w-[20px] rounded-[6px] text-white text-[11px] font-[600] flex items-center justify-center uppercase"
+    style={{ backgroundColor: orgColor(id || name) }}
+  >
     {(name || '?').trim().charAt(0)}
   </div>
 );
@@ -66,7 +89,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
               )}
               title={current?.name}
             >
-              <OrgAvatar name={current?.name} />
+              <OrgAvatar name={current?.name} id={current?.id} />
               <span className="max-w-[140px] truncate whitespace-nowrap">
                 {current?.name}
               </span>
@@ -111,7 +134,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
                         : 'cursor-pointer hover:bg-blockSeparator'
                     )}
                   >
-                    <OrgAvatar name={org.name} />
+                    <OrgAvatar name={org.name} id={org.id} />
                     <span className="flex-1 truncate max-w-[240px]">
                       {org.name}
                     </span>
