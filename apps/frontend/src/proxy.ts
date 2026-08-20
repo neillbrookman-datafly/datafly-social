@@ -86,7 +86,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', nextUrl.href));
   }
 
-  const org = nextUrl.searchParams.get('org');
+  // Fall back to the invite cookie (stored when a logged-out user opens an
+  // invite link) so the join also happens after a plain login, not only after
+  // registration or a logged-in click.
+  const org =
+    nextUrl.searchParams.get('org') || request.cookies.get('org')?.value || null;
   const url = new URL(nextUrl).search;
   if (!nextUrl.pathname.startsWith('/auth') && !authCookie) {
     const providers = ['google', 'settings'];
@@ -141,6 +145,20 @@ export async function proxy(request: NextRequest) {
       const redirect = NextResponse.redirect(
         new URL(`/?added=true`, nextUrl.href)
       );
+      // Clear the invite cookie so the join does not re-run (and redirect
+      // loop) on every subsequent request.
+      redirect.cookies.set('org', '', {
+        ...(!process.env.NOT_SECURED
+          ? {
+              path: '/',
+              secure: true,
+              httpOnly: true,
+              sameSite: false as const,
+              domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
+            }
+          : {}),
+        expires: new Date(0),
+      });
       if (id) {
         redirect.cookies.set('showorg', id, {
           ...(!process.env.NOT_SECURED
