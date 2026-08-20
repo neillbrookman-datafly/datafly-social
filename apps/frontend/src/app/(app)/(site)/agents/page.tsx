@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
-  title: 'Postiz - Agent',
+  title: 'Datafly Social - Agent',
   description: '',
 };
 
