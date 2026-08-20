@@ -584,11 +584,6 @@ export const LaunchesComponent = () => {
               {billingEnabled && user?.isLifetime && (
                 <div>{capitalize(user?.tier?.current || '')} tier</div>
               )}
-              <div>
-                {process.env.NEXT_PUBLIC_VERSION
-                  ? process.env.NEXT_PUBLIC_VERSION
-                  : ''}
-              </div>
             </div>
           </div>
         </div>
