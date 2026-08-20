@@ -3,32 +3,23 @@ export const dynamic = 'force-dynamic';
 import { Register } from '@gitroom/frontend/components/auth/register';
 import { Metadata } from 'next';
 import { isGeneralServerSide } from '@gitroom/helpers/utils/is.general.server.side';
-import Link from 'next/link';
-import { getT } from '@gitroom/react/translation/get.translation.service.backend';
-import { LoginWithOidc } from '@gitroom/frontend/components/auth/login.with.oidc';
+import { redirect } from 'next/navigation';
 export const metadata: Metadata = {
-  title: `${isGeneralServerSide() ? 'Datafly Social' : 'Gitroom'} Register`,
+  title: `${isGeneralServerSide() ? 'Datafly Social' : 'Gitroom'} Login`,
   description: '',
 };
-export default async function Auth(params: {searchParams: Promise<{provider: string}>}) {
-  const t = await getT();
-  if (process.env.DISABLE_REGISTRATION === 'true') {
+export default async function Auth(params: {searchParams: Promise<{provider: string; code: string}>}) {
+  const searchParams = await params?.searchParams;
+  // An OAuth callback carries provider/code and must reach <Register /> to
+  // complete the exchange. Any other visit goes straight to the login screen
+  // when registration is disabled (invite-only deployment).
+  const isOauthCallback = !!searchParams?.provider || !!searchParams?.code;
+  if (process.env.DISABLE_REGISTRATION === 'true' && !isOauthCallback) {
     const canRegister = (
       await (await internalFetch('/auth/can-register')).json()
     ).register;
-    if (!canRegister && !(await params?.searchParams)?.provider) {
-      return (
-        <>
-          <LoginWithOidc />
-          <div className="text-center">
-            {t('registration_is_disabled', 'Registration is disabled')}
-            <br />
-            <Link className="underline hover:font-bold" href="/auth/login">
-              {t('login_instead', 'Login instead')}
-            </Link>
-          </div>
-        </>
-      );
+    if (!canRegister) {
+      redirect('/auth/login');
     }
   }
   return <Register />;

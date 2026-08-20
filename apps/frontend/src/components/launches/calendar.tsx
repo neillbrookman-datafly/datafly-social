@@ -16,6 +16,7 @@ import {
 } from '@gitroom/frontend/components/launches/calendar.context';
 import dayjs from 'dayjs';
 import 'dayjs/locale/en';
+import 'dayjs/locale/en-gb';
 import 'dayjs/locale/he';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/zh';
@@ -67,7 +68,8 @@ extend(localizedFormat);
 // Initialize language
 const updateDayjsLocale = () => {
   const currentLanguage = i18next.resolvedLanguage || 'en';
-  dayjs.locale(currentLanguage);
+  // Use UK English date formatting (DD/MM/YYYY) instead of US 'en' (MM/DD/YYYY).
+  dayjs.locale(currentLanguage === 'en' ? 'en-gb' : currentLanguage);
 };
 
 // Set dayjs locale whenever i18next language changes
