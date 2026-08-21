@@ -321,9 +321,11 @@ export class UsersController {
       expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
     });
 
-    if (process.env.NOT_SECURED) {
-      response.header('showorg', id);
-    }
+    // Always expose the selected org via a response header so the client
+    // persists it as a reliable first-party cookie. The SameSite=None cookie
+    // set above is dropped by browser tracking protection when set from a
+    // fetch response, which silently broke org switching.
+    response.header('showorg', id);
 
     response.status(200).send();
   }
