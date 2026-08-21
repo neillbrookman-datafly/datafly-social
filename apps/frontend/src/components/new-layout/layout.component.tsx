@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode, useCallback } from 'react';
+import React, { ReactNode, useCallback, useState } from 'react';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 const ModeComponent = dynamic(
@@ -51,6 +51,8 @@ const jakartaSans = Plus_Jakarta_Sans({
 
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
+  // Mobile-only navigation drawer (hidden entirely on desktop via md: breakpoints)
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const { backendUrl, billingEnabled, isGeneral } = useVariables();
 
@@ -90,7 +92,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <ContinueProvider />
             <div
               className={clsx(
-                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
+                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] max-md:p-[6px] max-md:overflow-x-hidden',
                 jakartaSans.className
               )}
             >
@@ -100,9 +102,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               ) : (
                 <>
                   <AnnouncementBanner />
-                  <div className="flex-1 flex gap-[8px]">
+                  <div className="flex-1 flex gap-[8px] max-md:gap-0">
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
+                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px] max-md:hidden">
                       <div
                         id="left-menu"
                         className={clsx(
@@ -117,28 +119,78 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                       </div>
                     </div>
                     <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] items-center">
-                        <div className="text-[24px] font-[600] flex flex-1">
+                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] items-center max-md:h-[56px] max-md:px-[12px]">
+                        <button
+                          type="button"
+                          aria-label="Menu"
+                          onClick={() => setDrawerOpen(true)}
+                          className="hidden max-md:flex items-center justify-center w-[32px] h-[32px] me-[8px] text-newTextColor"
+                        >
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                        <div className="text-[24px] font-[600] flex flex-1 max-md:text-[18px]">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] text-textItemBlur">
+                        <div className="flex gap-[20px] text-textItemBlur max-md:gap-[12px]">
                           <StreakComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator max-md:hidden" />
                           <OrganizationSelector />
                           <div className="hover:text-newTextColor">
                             <ModeComponent />
                           </div>
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <LanguageComponent />
-                          <ChromeExtensionComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <AttachToFeedbackIcon />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator max-md:hidden" />
+                          <div className="max-md:hidden flex">
+                            <LanguageComponent />
+                          </div>
+                          <div className="max-md:hidden flex">
+                            <ChromeExtensionComponent />
+                          </div>
+                          <div className="w-[1px] h-[20px] bg-blockSeparator max-md:hidden" />
+                          <div className="max-md:hidden flex">
+                            <AttachToFeedbackIcon />
+                          </div>
                           <NotificationComponent />
                         </div>
                       </div>
-                      <div className="flex flex-1 gap-[1px]">{children}</div>
+                      <div className="flex max-md:flex-col flex-1 gap-[1px]">{children}</div>
                     </div>
                   </div>
+                  {/* Mobile-only slide-in navigation drawer */}
+                  {drawerOpen && (
+                    <div
+                      className="md:hidden fixed inset-0 z-[600]"
+                      onClick={() => setDrawerOpen(false)}
+                    >
+                      <div className="absolute inset-0 bg-black/60" />
+                      <div
+                        className="absolute top-0 start-0 h-full w-[250px] max-w-[80vw] bg-newBgColorInner p-[16px] flex flex-col gap-[24px] overflow-y-auto shadow-menu"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Logo />
+                          <button
+                            type="button"
+                            aria-label="Close menu"
+                            onClick={() => setDrawerOpen(false)}
+                            className="w-[32px] h-[32px] flex items-center justify-center text-newTextColor"
+                          >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div onClick={() => setDrawerOpen(false)} className="flex flex-col gap-[24px]">
+                          <TopMenu />
+                          <div className="h-[1px] bg-blockSeparator" />
+                          <LanguageComponent />
+                          <ChromeExtensionComponent />
+                          <AttachToFeedbackIcon />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>

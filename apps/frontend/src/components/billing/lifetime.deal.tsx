@@ -105,7 +105,7 @@ export const LifetimeDeal = () => {
     return null;
   }
   return (
-    <div className="flex gap-[30px]">
+    <div className="flex gap-[30px] max-md:flex-col">
       <div className="border border-customColor6 bg-sixth p-[24px] flex flex-col gap-[20px] flex-1 rounded-[4px]">
         <div className="text-[30px]">
           {t('current_package', 'Current Package:')}

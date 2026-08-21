@@ -439,10 +439,10 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   );
 
   return (
-    <div className="w-full h-full flex-1 p-[40px] flex relative">
-      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col">
-        <div className="flex-1 flex">
-          <div className="flex flex-col flex-1 border-e border-newBorder">
+    <div className="w-full h-full flex-1 p-[40px] max-md:p-0 flex relative">
+      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] max-md:rounded-none flex-col max-md:overflow-y-auto">
+        <div className="flex-1 flex max-md:flex-col">
+          <div className="flex flex-col flex-1 border-e border-newBorder max-md:border-e-0 max-md:border-b max-md:min-h-[55vh]">
             <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600]">
               {t('create_post_title', 'Create Post')}
               <CreationMethodBadge
@@ -452,11 +452,11 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             </div>
             <div className="flex-1 flex flex-col gap-[16px]">
               <div
-                className={clsx('flex-1 relative', showSettings && 'hidden')}
+                className={clsx('flex-1 relative max-md:min-h-[50vh]', showSettings && 'hidden')}
               >
                 <div
                   id="social-content"
-                  className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
+                  className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner max-md:static max-md:h-auto max-md:overflow-visible"
                 >
                   <div className="flex w-full">
                     <div className="flex flex-1">
@@ -532,25 +532,25 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </div>
             </div>
           </div>
-          <div className="w-[580px] flex flex-col">
-            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600]">
+          <div className="w-[580px] max-md:w-full flex flex-col max-md:min-h-[55vh]">
+            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] max-md:rounded-none flex items-center px-[20px] text-[20px] font-[600]">
               <div className="flex-1">{t('post_preview', 'Post Preview')}</div>
               <div className="cursor-pointer">
                 <CloseIcon onClick={askClose} className="text-[#A3A3A3]" />
               </div>
             </div>
-            <div className="flex-1 relative">
+            <div className="flex-1 relative max-md:min-h-[50vh]">
               <Scrollable
                 scrollClasses="!pe-[20px]"
-                className="absolute top-0 p-[20px] pe-[8px] left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
+                className="absolute top-0 p-[20px] pe-[8px] left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner max-md:static max-md:h-auto max-md:overflow-visible"
               >
                 <ShowAllProviders ref={ref} />
               </Scrollable>
             </div>
           </div>
         </div>
-        <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center">
-          <div className="flex-1 flex ps-[20px] gap-[8px]">
+        <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center max-md:h-auto max-md:flex-col max-md:items-stretch max-md:gap-[12px] max-md:py-[12px] max-md:px-[12px]">
+          <div className="flex-1 flex ps-[20px] gap-[8px] max-md:ps-0 max-md:flex-wrap max-md:w-full">
             {!dummy && (
               <TagsComponent
                 name="tags"
@@ -566,7 +566,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               <RepeatComponent repeat={repeater} onChange={setRepeater} />
             )}
           </div>
-          <div className="pe-[20px] flex items-center justify-end gap-[8px]">
+          <div className="pe-[20px] flex items-center justify-end gap-[8px] max-md:pe-0 max-md:flex-wrap max-md:w-full max-md:justify-stretch">
             {existingData?.integration && (
               <button
                 onClick={deletePost}
@@ -599,7 +599,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             )}
             {addEditSets && (
               <button
-                className="text-white text-[15px] font-[600] min-w-[180px] btnSub disabled:cursor-not-allowed disabled:opacity-80 outline-none gap-[8px] flex justify-center items-center h-[44px] rounded-[8px] bg-[#00c98d] ps-[20px] pe-[16px]"
+                className="text-white text-[15px] font-[600] min-w-[180px] max-md:min-w-0 max-md:flex-1 btnSub disabled:cursor-not-allowed disabled:opacity-80 outline-none gap-[8px] flex justify-center items-center h-[44px] rounded-[8px] bg-[#00c98d] ps-[20px] pe-[16px]"
                 disabled={
                   selectedIntegrations.length === 0 || loading || locked
                 }
@@ -615,7 +615,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                     selectedIntegrations.length === 0 || loading || locked
                   }
                   onClick={schedule('schedule')}
-                  className="text-white relative min-w-[180px] btnSub disabled:cursor-not-allowed disabled:opacity-80 outline-none gap-[8px] flex justify-center items-center h-[44px] rounded-[8px] bg-[#00c98d] ps-[20px] pe-[16px]"
+                  className="text-white relative min-w-[180px] max-md:min-w-0 max-md:flex-1 btnSub disabled:cursor-not-allowed disabled:opacity-80 outline-none gap-[8px] flex justify-center items-center h-[44px] rounded-[8px] bg-[#00c98d] ps-[20px] pe-[16px]"
                 >
                   {loading && (
                     <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%]">

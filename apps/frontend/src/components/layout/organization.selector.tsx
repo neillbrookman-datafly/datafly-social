@@ -90,7 +90,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
               title={current?.name}
             >
               <OrgAvatar name={current?.name} id={current?.id} />
-              <span className="max-w-[140px] truncate whitespace-nowrap">
+              <span className="max-w-[140px] max-md:max-w-[80px] truncate whitespace-nowrap">
                 {current?.name}
               </span>
               {multiple && (
