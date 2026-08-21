@@ -568,7 +568,11 @@ export const ListView = () => {
 };
 
 export const Calendar = () => {
-  const { display } = useCalendar();
+  const { display, isMobile } = useCalendar();
+  // Phones always get the agenda list view (the grid views don't fit).
+  if (isMobile) {
+    return <ListView />;
+  }
   return (
     <>
       {display === 'list' ? (

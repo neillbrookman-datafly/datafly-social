@@ -55,6 +55,7 @@ export const CalendarContext = createContext({
     /** empty **/
   },
   display: 'week',
+  isMobile: false,
   setFilters: (filters: {
     startDate: string;
     endDate: string;
@@ -148,6 +149,18 @@ export const CalendarWeekProvider: FC<{
   const [displaySaved, setDisplaySaved] = useCookie('calendar-display', 'week');
   const display = searchParams.get('display') || displaySaved;
 
+  // On phones the grid views are unusable, so we render the agenda list view
+  // (and fetch its data) regardless of the saved display. Desktop unaffected.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   // List view state
   const [listPage, setListPage] = useState(0);
   const [listState, setListStateRaw] = useState<ListStateFilter>('all');
@@ -216,7 +229,7 @@ export const CalendarWeekProvider: FC<{
     isLoading: calendarIsLoading,
     mutate: mutateCalendar,
   } = useSWR(
-    filters.display !== 'list' ? `/posts-${params}` : null,
+    filters.display !== 'list' && !isMobile ? `/posts-${params}` : null,
     loadData,
     {
       refreshInterval: 3600000,
@@ -232,7 +245,7 @@ export const CalendarWeekProvider: FC<{
     isLoading: listIsLoading,
     mutate: mutateList,
   } = useSWR(
-    filters.display === 'list' ? `/posts-list-${listParams}` : null,
+    filters.display === 'list' || isMobile ? `/posts-list-${listParams}` : null,
     loadListData,
     {
       refreshInterval: 3600000,
@@ -332,7 +345,8 @@ export const CalendarWeekProvider: FC<{
   }, [mutateCalendar, mutateList]);
 
   // Determine loading state based on current view
-  const loading = filters.display === 'list' ? listIsLoading : calendarIsLoading;
+  const loading =
+    filters.display === 'list' || isMobile ? listIsLoading : calendarIsLoading;
 
   return (
     <CalendarContext.Provider
@@ -342,6 +356,7 @@ export const CalendarWeekProvider: FC<{
         ...filters,
         posts: calendarIsLoading ? [] : internalData,
         loading,
+        isMobile,
         integrations,
         setFilters: setFiltersWrapper,
         changeDate,

@@ -257,7 +257,9 @@ export const Filters = () => {
     [setDay, setWeek, setMonth]
   );
 
-  const isListView = calendar.display === 'list';
+  // On phones the calendar always renders the agenda list, so treat the filter
+  // bar as list mode there too (hide the grid date-nav, show the list filters).
+  const isListView = calendar.display === 'list' || calendar.isMobile;
 
   const setListStateFilter = useCallback(
     (next: ListStateFilter) => () => {
