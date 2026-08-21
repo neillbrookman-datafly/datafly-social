@@ -52,12 +52,15 @@ export class AuthService {
           throw new Error('Email already exists');
         }
 
-        if (!(await this.canRegister(provider))) {
+        const invite =
+          addToOrg && typeof addToOrg !== 'boolean' ? addToOrg : null;
+
+        // Invited users may register even when public registration is disabled
+        // (invite-only model: no open signups, but invitees can still join).
+        if (!invite && !(await this.canRegister(provider))) {
           throw new Error('Registration is disabled');
         }
 
-        const invite =
-          addToOrg && typeof addToOrg !== 'boolean' ? addToOrg : null;
         let newUser: User;
         let addedOrg: any = false;
         if (invite) {
@@ -184,7 +187,8 @@ export class AuthService {
       return { user, addedOrg: undefined as any };
     }
 
-    if (!(await this.canRegister(provider))) {
+    // Invited users may register even when public registration is disabled.
+    if (!invite && !(await this.canRegister(provider))) {
       throw new Error('Registration is disabled');
     }
 
