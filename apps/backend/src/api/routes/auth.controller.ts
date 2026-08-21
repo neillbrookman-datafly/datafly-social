@@ -48,8 +48,10 @@ export class AuthController {
     @UserAgent() userAgent: string
   ) {
     try {
+      // Read the invite token from the cookie OR the forwarded `org` header
+      // (the header survives cross-site/SameSite limits that drop the cookie).
       const getOrgFromCookie = this._authService.getOrgFromCookie(
-        req?.cookies?.org
+        req?.cookies?.org || (req?.headers?.org as string | undefined)
       );
 
       const { jwt, addedOrg } = await this._authService.routeAuth(
@@ -59,6 +61,15 @@ export class AuthController {
         userAgent,
         getOrgFromCookie
       );
+
+      // Consume the invite: clear the org cookie so a lingering token can't
+      // auto-join a later normal signup on the same browser, and so the `org`
+      // header stops riding on every subsequent request.
+      if (getOrgFromCookie) {
+        response.clearCookie('org', {
+          domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
+        });
+      }
 
       const activationRequired =
         body.provider === 'LOCAL' && this._emailService.hasProvider();

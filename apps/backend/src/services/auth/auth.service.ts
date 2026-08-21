@@ -56,23 +56,41 @@ export class AuthService {
           throw new Error('Registration is disabled');
         }
 
-        const create = await this._organizationService.createOrgAndUser(
-          body,
-          ip,
-          userAgent
-        );
+        const invite =
+          addToOrg && typeof addToOrg !== 'boolean' ? addToOrg : null;
+        let newUser: User;
+        let addedOrg: any = false;
+        if (invite) {
+          // Invited user: create the account with NO personal org and join the
+          // inviting org. Fall back to a personal org only if the invite can't
+          // be honoured, so the account is never orphaned.
+          newUser = await this._organizationService.createUser(
+            body,
+            ip,
+            userAgent
+          );
+          addedOrg = await this._organizationService.addUserToOrg(
+            newUser.id,
+            invite.id,
+            invite.orgId,
+            invite.role
+          );
+          if (!addedOrg) {
+            await this._organizationService.createOrgForUser(
+              newUser.id,
+              body.company
+            );
+          }
+        } else {
+          const create = await this._organizationService.createOrgAndUser(
+            body,
+            ip,
+            userAgent
+          );
+          newUser = create.users[0].user;
+        }
 
-        const addedOrg =
-          addToOrg && typeof addToOrg !== 'boolean'
-            ? await this._organizationService.addUserToOrg(
-                create.users[0].user.id,
-                addToOrg.id,
-                addToOrg.orgId,
-                addToOrg.role
-              )
-            : false;
-
-        const obj = { addedOrg, jwt: await this.jwt(create.users[0].user) };
+        const obj = { addedOrg, jwt: await this.jwt(newUser) };
         await this._emailService.sendEmail(
           body.email,
           'Activate your account',
@@ -93,20 +111,29 @@ export class AuthService {
       return { addedOrg: false, jwt: await this.jwt(user) };
     }
 
-    const user = await this.loginOrRegisterProvider(
-      provider,
-      body as CreateOrgUserDto,
-      ip,
-      userAgent
-    );
+    const invite =
+      addToOrg && typeof addToOrg !== 'boolean' ? addToOrg : null;
+    const { user, addedOrg: providerAddedOrg } =
+      await this.loginOrRegisterProvider(
+        provider,
+        body as CreateOrgUserDto,
+        ip,
+        userAgent,
+        invite
+      );
 
+    // A NEW provider user is already joined inside the helper (providerAddedOrg
+    // is a row or false); only an EXISTING provider user returns undefined and
+    // needs the invite join applied here (unchanged from before).
     const addedOrg =
-      addToOrg && typeof addToOrg !== 'boolean'
+      providerAddedOrg !== undefined
+        ? providerAddedOrg
+        : invite
         ? await this._organizationService.addUserToOrg(
             user.id,
-            addToOrg.id,
-            addToOrg.orgId,
-            addToOrg.role
+            invite.id,
+            invite.orgId,
+            invite.role
           )
         : false;
     return { addedOrg, jwt: await this.jwt(user) };
@@ -138,8 +165,9 @@ export class AuthService {
     provider: Provider,
     body: CreateOrgUserDto,
     ip: string,
-    userAgent: string
-  ) {
+    userAgent: string,
+    invite?: { orgId: string; role: 'USER' | 'ADMIN'; id: string } | null
+  ): Promise<{ user: User; addedOrg: any }> {
     const providerInstance = this._providerManager.getProvider(provider);
     const providerUser = await providerInstance.getUser(body.providerToken);
 
@@ -152,25 +180,57 @@ export class AuthService {
       provider
     );
     if (user) {
-      return user;
+      // Existing provider user: caller applies any invite join (unchanged).
+      return { user, addedOrg: undefined as any };
     }
 
     if (!(await this.canRegister(provider))) {
       throw new Error('Registration is disabled');
     }
 
-    const create = await this._organizationService.createOrgAndUser(
-      {
-        company: body.company,
-        email: providerUser.email,
-        password: '',
-        provider,
-        providerId: providerUser.id,
-        datafast_visitor_id: body.datafast_visitor_id,
-      },
-      ip,
-      userAgent
-    );
+    const orgUserBody = {
+      company: body.company,
+      email: providerUser.email,
+      password: '',
+      provider,
+      providerId: providerUser.id,
+      datafast_visitor_id: body.datafast_visitor_id,
+    };
+    let created: User;
+    let addedOrg: any = undefined;
+    let orgIdForPostRegistration: string | undefined;
+    if (invite) {
+      // Invited new provider user: no personal org, join the inviting org
+      // (orphan-safe fallback to a personal org if the invite can't be honoured).
+      created = await this._organizationService.createUser(
+        orgUserBody,
+        ip,
+        userAgent
+      );
+      addedOrg = await this._organizationService.addUserToOrg(
+        created.id,
+        invite.id,
+        invite.orgId,
+        invite.role
+      );
+      if (!addedOrg) {
+        const org = await this._organizationService.createOrgForUser(
+          created.id,
+          body.company
+        );
+        orgIdForPostRegistration = org.id;
+      } else {
+        orgIdForPostRegistration = invite.orgId;
+      }
+    } else {
+      const create = await this._organizationService.createOrgAndUser(
+        orgUserBody,
+        ip,
+        userAgent
+      );
+      created = create.users[0].user;
+      orgIdForPostRegistration = create.id;
+    }
 
     this._track('register', providerUser.email, body.datafast_visitor_id).catch(
       (err) => {}
@@ -180,13 +240,16 @@ export class AuthService {
 
     try {
       if (providerInstance?.postRegistration) {
-        await providerInstance.postRegistration(body.providerToken, create.id);
+        await providerInstance.postRegistration(
+          body.providerToken,
+          orgIdForPostRegistration!
+        );
       }
     } catch (err) {
       // Don't fail registration if postRegistration fails
     }
 
-    return create.users[0].user;
+    return { user: created, addedOrg };
   }
 
   private async _track(

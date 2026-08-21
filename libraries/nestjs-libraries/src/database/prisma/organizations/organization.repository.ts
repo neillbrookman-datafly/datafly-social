@@ -310,6 +310,49 @@ export class OrganizationRepository {
     });
   }
 
+  // Create a user WITHOUT a personal org (used when the user joins an existing
+  // org via an invite). Mirrors the user fields/activation logic of
+  // createOrgAndUser exactly.
+  async createUser(
+    body: Omit<CreateOrgUserDto, 'providerToken'> & { providerId?: string },
+    hasEmail: boolean,
+    ip: string,
+    userAgent: string
+  ) {
+    return this._user.model.user.create({
+      data: {
+        activated: body.provider !== 'LOCAL' || !hasEmail,
+        email: body.email,
+        password: body.password ? AuthService.hashPassword(body.password) : '',
+        providerName: body.provider,
+        providerId: body.providerId || '',
+        timezone: 0,
+        ip,
+        agent: userAgent,
+      },
+    });
+  }
+
+  // Orphan-safe fallback: give an already-created user a personal org (used
+  // when an invite can't be honoured, e.g. already consumed).
+  async createOrgForUser(userId: string, company: string) {
+    return this._organization.model.organization.create({
+      data: {
+        name: company,
+        apiKey: AuthService.fixedEncryption(makeId(20)),
+        allowTrial: true,
+        isTrailing: true,
+        users: {
+          create: {
+            role: Role.SUPERADMIN,
+            user: { connect: { id: userId } },
+          },
+        },
+      },
+      select: { id: true },
+    });
+  }
+
   getOrgByCustomerId(customerId: string) {
     return this._organization.model.organization.findFirst({
       where: {

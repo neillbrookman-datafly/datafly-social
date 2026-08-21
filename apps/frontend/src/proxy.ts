@@ -112,17 +112,19 @@ export async function proxy(request: NextRequest) {
   if (nextUrl.pathname.startsWith('/auth') && !authCookie) {
     if (org) {
       const redirect = NextResponse.redirect(new URL(`/`, nextUrl.href));
+      // JS-readable (not httpOnly) so the invite token can be forwarded as an
+      // `org` header, and 2-day TTL to match the invite JWT's own timeLimit so
+      // it survives the Google OAuth round-trip + registration form.
       redirect.cookies.set('org', org, {
         ...(!process.env.NOT_SECURED
           ? {
               path: '/',
               secure: true,
-              httpOnly: true,
               sameSite: false,
               domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
             }
           : {}),
-        expires: new Date(Date.now() + 15 * 60 * 1000),
+        expires: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
       });
       return redirect;
     }

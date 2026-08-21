@@ -43,6 +43,18 @@ export const customFetch = (
             .find((p) => p.includes('impersonate='))
             ?.split('=')[1];
 
+    // Forward a pending team-invite token as an `org` header so it survives
+    // cross-site / SameSite cookie limits on the way to /auth/register.
+    // startsWith('org=') on a trimmed token avoids matching `showorg=`.
+    const inviteOrgCookie =
+      typeof document === 'undefined'
+        ? null
+        : document.cookie
+            .split(';')
+            .map((p) => p.trim())
+            .find((p) => p.startsWith('org='))
+            ?.split('=')[1];
+
     const fetchRequest = await fetch(params.baseUrl + url, {
       ...(secured ? { credentials: 'include' } : {}),
       ...(newRequestObject || options),
@@ -66,6 +78,7 @@ export const customFetch = (
         ...(authNonSecuredImpersonate
           ? { impersonate: authNonSecuredImpersonate }
           : {}),
+        ...(inviteOrgCookie ? { org: inviteOrgCookie } : {}),
       },
       // @ts-ignore
       ...(!options.next && options.cache !== 'force-cache'
