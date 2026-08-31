@@ -25,9 +25,11 @@ export class LinkedinPageProvider
   override isBetweenSteps = true;
   override refreshWait = true;
   override maxConcurrentJob = 2; // LinkedIn Page has professional posting limits
+  // The Community Management app can ONLY carry the CM API product, so it
+  // cannot grant the Sign-In scopes (openid/profile) — LinkedIn rejects the
+  // whole authorization if they're requested. Use only CM-grantable scopes and
+  // derive member identity from /v2/me (r_basicprofile) instead of /userinfo.
   override scopes = [
-    'openid',
-    'profile',
     'w_member_social',
     'r_basicprofile',
     'rw_organization_admin',
@@ -59,25 +61,17 @@ export class LinkedinPageProvider
       })
     ).json();
 
-    const { vanityName } = await (
+    const me = await (
       await fetch('https://api.linkedin.com/v2/me', {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       })
     ).json();
-
-    const {
-      name,
-      sub: id,
-      picture,
-    } = await (
-      await fetch('https://api.linkedin.com/v2/userinfo', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
+    const id = me.id;
+    const name = `${me.localizedFirstName || ''} ${me.localizedLastName || ''}`.trim();
+    const picture = '';
+    const vanityName = me.vanityName;
 
     return {
       id,
@@ -233,25 +227,19 @@ export class LinkedinPageProvider
 
     this.checkScopes(this.scopes, scope);
 
-    const {
-      name,
-      sub: id,
-      picture,
-    } = await (
-      await fetch('https://api.linkedin.com/v2/userinfo', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
-
-    const { vanityName } = await (
+    // Community-app token has no openid/profile scope, so /v2/userinfo is
+    // unavailable; derive identity from /v2/me (r_basicprofile) instead.
+    const me = await (
       await fetch('https://api.linkedin.com/v2/me', {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       })
     ).json();
+    const id = me.id;
+    const name = `${me.localizedFirstName || ''} ${me.localizedLastName || ''}`.trim();
+    const picture = '';
+    const vanityName = me.vanityName;
 
     return {
       id: id,
