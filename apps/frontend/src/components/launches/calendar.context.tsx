@@ -149,12 +149,13 @@ export const CalendarWeekProvider: FC<{
   const [displaySaved, setDisplaySaved] = useCookie('calendar-display', 'week');
   const display = searchParams.get('display') || displaySaved;
 
-  // On phones the grid views are unusable, so we render the agenda list view
-  // (and fetch its data) regardless of the saved display. Desktop unaffected.
+  // Below ~1024px the 7-day grid (which wants ~1400px) is cramped, so render
+  // the agenda list view (and fetch its data) instead. Covers phones, portrait
+  // tablets and narrow desktop windows; wide screens keep the grid.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(max-width: 767px)');
+    const mq = window.matchMedia('(max-width: 1024px)');
     const update = () => setIsMobile(mq.matches);
     update();
     mq.addEventListener('change', update);
