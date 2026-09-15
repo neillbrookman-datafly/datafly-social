@@ -9,6 +9,7 @@ import sharp from 'sharp';
 import { lookup } from 'mime-types';
 import { readOrFetch } from '@gitroom/helpers/utils/read.or.fetch';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import { resolveDocumentTitle } from '@gitroom/helpers/utils/document.title';
 import { timer } from '@gitroom/helpers/utils/timer';
 import {
   BadBody,
@@ -694,7 +695,7 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
       return {
         content: {
           media: {
-            ...(isPdf ? { title: pdfTitle || 'slides' } : {}),
+            ...(isPdf ? { title: resolveDocumentTitle(pdfTitle) } : {}),
             id: mediaIds[0],
           },
         },
@@ -744,8 +745,16 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     type: 'company' | 'personal',
     isPdf: boolean
   ): Promise<string> {
+    // Typed title, else the uploaded PDF's tidied name, else "Carousel".
+    // An images carousel has no file name, so it goes typed → "Carousel".
+    const uploadedPdf = (firstPost.media || []).find((m) =>
+      hasExtension(m?.path, 'pdf')
+    );
     const pdfTitle = isPdf
-      ? firstPost.settings?.carousel_name || 'slides'
+      ? resolveDocumentTitle(
+          firstPost.settings?.carousel_name,
+          uploadedPdf?.originalName
+        )
       : undefined;
 
     const postPayload = this.createLinkedInPostPayload(

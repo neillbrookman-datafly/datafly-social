@@ -353,6 +353,14 @@ export class PostsService {
                 return this._mediaService.getMediaById(p.id);
               }
 
+              // A PDF's upload name becomes the LinkedIn document title when no
+              // title was typed. Posts store only id/path/alt/thumbnail, so fetch
+              // it; not written back, it's only needed while publishing.
+              if (p?.id && hasExtension(p.path, 'pdf') && !p.originalName) {
+                const media = await this._mediaService.getMediaById(p.id);
+                return { ...p, originalName: media?.originalName || undefined };
+              }
+
               return p;
             })
           )

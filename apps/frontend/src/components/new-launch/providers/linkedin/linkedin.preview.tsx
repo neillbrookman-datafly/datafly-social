@@ -11,6 +11,7 @@ import {
   PdfCarousel,
 } from '@gitroom/react/helpers/document.carousel';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import { resolveDocumentTitle } from '@gitroom/helpers/utils/document.title';
 
 const Icons = () => {
   return (
@@ -259,7 +260,7 @@ export const LinkedinPreview: FC<{
   // Settings are only there when the preview sits inside the channel's settings
   // form (the editor); elsewhere fall back to LinkedIn's defaults.
   const form = useFormContext();
-  const documentTitle = (form?.watch?.('carousel_name') as string) || 'slides';
+  const typedTitle = form?.watch?.('carousel_name') as string | undefined;
   const imagesAsCarousel = !!form?.watch?.('post_as_images_carousel');
 
   const renderContent = topValue.map((p) => {
@@ -300,6 +301,8 @@ export const LinkedinPreview: FC<{
   // rule checkValidity enforces). Anything else keeps the image strip.
   const media = renderContent?.[0]?.images || [];
   const pdf = media.find((m) => hasExtension(m?.path, 'pdf'));
+  // Same rule the publisher uses: typed, else the PDF's file name, else "Carousel".
+  const documentTitle = resolveDocumentTitle(typedTitle, (pdf as any)?.originalName);
   const showImagesCarousel =
     !pdf &&
     imagesAsCarousel &&

@@ -149,6 +149,8 @@ export type MediaContent = {
   alt?: string;
   thumbnail?: string;
   thumbnailTimestamp?: number;
+  /** The name it was uploaded with; set for PDFs (see PostsService.updateMedia). */
+  originalName?: string;
 };
 
 export type FetchPageInformationResult = {
