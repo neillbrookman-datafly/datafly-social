@@ -12,7 +12,7 @@ import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
-import { Organization, User } from '@prisma/client';
+import { Integration, Organization, User } from '@prisma/client';
 import { IntegrationFunctionDto } from '@gitroom/nestjs-libraries/dtos/integrations/integration.function.dto';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
@@ -31,6 +31,16 @@ import {
   Sections,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import { uniqBy } from 'lodash';
+import {
+  LINKEDIN_MENTION_CACHE,
+  LINKEDIN_PROVIDERS,
+  LinkedinMention,
+  MIN_LOOKUP_LENGTH,
+  matchConnectedPages,
+  recentlyMissed,
+  rememberMiss,
+  vanityCandidates,
+} from '@gitroom/nestjs-libraries/integrations/social/linkedin.mentions';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 
 @ApiTags('Integrations')
@@ -275,6 +285,10 @@ export class IntegrationsController {
       throw new Error('Invalid integration');
     }
 
+    if (LINKEDIN_PROVIDERS.includes(getIntegration.providerIdentifier)) {
+      return this.linkedinMentions(org.id, getIntegration, body?.data?.query);
+    }
+
     let newList: any[] | { none: true } = [];
     try {
       newList = (await this.functionIntegration(org, body)) || [];
@@ -319,6 +333,64 @@ export class IntegrationsController {
   }
 
   @Post('/function')
+  /** Company tags for LinkedIn — see linkedin.mentions.ts for why this differs. */
+  private async linkedinMentions(
+    orgId: string,
+    integration: Integration,
+    rawQuery?: string
+  ): Promise<LinkedinMention[]> {
+    const query = (rawQuery || '').trim();
+    const pages = (await this._integrationService.getIntegrationsList(orgId)).filter(
+      (i) => i.providerIdentifier === 'linkedin-page' && !i.disabled
+    );
+
+    const own = matchConnectedPages(pages, query);
+    const cached = (
+      await this._integrationService.getMentions(LINKEDIN_MENTION_CACHE, query)
+    ).map((m) => ({ id: m.username, label: m.name, image: m.image || '' }));
+
+    // Only ask LinkedIn about companies we don't already know.
+    let found: LinkedinMention[] = [];
+    const lookupVia =
+      integration.providerIdentifier === 'linkedin-page' && !integration.refreshNeeded
+        ? integration
+        : pages.find((p) => !p.refreshNeeded);
+    if (!own.length && !cached.length && lookupVia && query.length >= MIN_LOOKUP_LENGTH) {
+      const pageProvider = this._integrationManager.getSocialIntegration('linkedin-page');
+      for (const vanity of vanityCandidates(query)) {
+        if (recentlyMissed(vanity)) {
+          continue;
+        }
+        try {
+          // LinkedinProvider.mention only uses the token; it throws on a 403.
+          const result = await pageProvider.mention?.(
+            lookupVia.token,
+            { query: vanity },
+            lookupVia.internalId,
+            lookupVia
+          );
+          found = Array.isArray(result) ? result : [];
+        } catch {
+          found = [];
+        }
+        if (found.length) {
+          break;
+        }
+        rememberMiss(vanity);
+      }
+      if (found.length) {
+        await this._integrationService.insertMentions(
+          LINKEDIN_MENTION_CACHE,
+          found.map((m) => ({ name: m.label, username: m.id, image: m.image || '' }))
+        );
+      }
+    }
+
+    return uniqBy([...own, ...found, ...cached], (m) => m.id).filter(
+      (m) => m.label && m.id
+    );
+  }
+
   async functionIntegration(
     @GetOrgFromRequest() org: Organization,
     @Body() body: IntegrationFunctionDto
