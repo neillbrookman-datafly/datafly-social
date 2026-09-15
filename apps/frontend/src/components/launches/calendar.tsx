@@ -6,7 +6,9 @@ import React, {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -338,9 +340,35 @@ export const DayView = () => {
     </div>
   );
 };
+// The week grid holds all 24 hours but opens here, so the working day is on
+// screen without scrolling past midnight. Earlier hours are still a scroll up.
+const WEEK_VIEW_START_HOUR = 9;
+
 export const WeekView = () => {
-  const { startDate, endDate } = useCalendar();
+  const { startDate, endDate, posts } = useCalendar();
   const t = useT();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const startHourRef = useRef<HTMLDivElement>(null);
+  const userScrolled = useRef(false);
+
+  // Anchor the start hour just under the sticky day headers. Re-runs as posts
+  // load, because early-morning posts make the rows above taller and push the
+  // start hour back down; stops for good once the user scrolls themselves, so
+  // it never yanks the view out from under them.
+  useLayoutEffect(() => {
+    const container = scrollRef.current;
+    const row = startHourRef.current;
+    if (userScrolled.current || !container || !row) {
+      return;
+    }
+    const headerHeight = headerRef.current?.offsetHeight ?? 0;
+    container.scrollTop = Math.max(0, row.offsetTop - headerHeight - 4); // 4 = grid gap
+  }, [posts, startDate]);
+
+  const markUserScrolled = useCallback(() => {
+    userScrolled.current = true;
+  }, []);
 
   // Use dayjs to get localized day names
   const localizedDays = useMemo(() => {
@@ -363,8 +391,19 @@ export const WeekView = () => {
   return (
     <div className="flex flex-col text-textColor flex-1">
       <div className="flex-1 relative">
-        <div className="grid [grid-template-columns:136px_repeat(7,_minmax(0,_1fr))] max-md:[grid-template-columns:52px_repeat(7,_minmax(86px,1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-          <div className="z-10 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"></div>
+        <div
+          ref={scrollRef}
+          // Only genuine input counts — setting scrollTop fires onScroll too.
+          onWheel={markUserScrolled}
+          onTouchMove={markUserScrolled}
+          onMouseDown={markUserScrolled}
+          onKeyDown={markUserScrolled}
+          className="grid [grid-template-columns:136px_repeat(7,_minmax(0,_1fr))] max-md:[grid-template-columns:52px_repeat(7,_minmax(86px,1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor"
+        >
+          <div
+            ref={headerRef}
+            className="z-10 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"
+          ></div>
           {localizedDays.map((day, index) => (
             <div
               key={day.name}
@@ -389,7 +428,10 @@ export const WeekView = () => {
           ))}
           {hours.map((hour) => (
             <Fragment key={hour}>
-              <div className="p-2 pe-4 text-center items-center justify-center flex text-[14px] text-newTableText">
+              <div
+                ref={hour === WEEK_VIEW_START_HOUR ? startHourRef : undefined}
+                className="p-2 pe-4 text-center items-center justify-center flex text-[14px] text-newTableText"
+              >
                 {convertTimeFormatBasedOnLocality(hour)}
               </div>
               {localizedDays.map((day, indexDay) => (
