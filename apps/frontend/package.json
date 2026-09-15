@@ -4,10 +4,10 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "dotenv -e ../../.env -- next dev -p 4200",
+    "dev": "node scripts/copy-pdf-worker.mjs && dotenv -e ../../.env -- next dev -p 4200",
     "fetch-gtm": "node scripts/fetch-gtm.mjs",
     "postinstall": "node scripts/fetch-gtm.mjs",
-    "build": "next build",
+    "build": "node scripts/copy-pdf-worker.mjs && next build",
     "build:sentry": "dotenv -e ../../.env -- next build",
     "start": "dotenv -e ../../.env -- next start -p 4200",
     "pm2": "pm2 start pnpm --name frontend -- start"

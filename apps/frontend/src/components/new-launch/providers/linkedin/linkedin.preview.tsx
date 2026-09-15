@@ -4,7 +4,13 @@ import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import { FC } from 'react';
+import { useFormContext } from 'react-hook-form';
 import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import {
+  ImagesCarousel,
+  PdfCarousel,
+} from '@gitroom/react/helpers/document.carousel';
+import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 
 const Icons = () => {
   return (
@@ -250,6 +256,11 @@ export const LinkedinPreview: FC<{
   const { value: topValue, integration } = useIntegration();
   const current = useLaunchStore((state) => state.current);
   const mediaDir = useMediaDirectory();
+  // Settings are only there when the preview sits inside the channel's settings
+  // form (the editor); elsewhere fall back to LinkedIn's defaults.
+  const form = useFormContext();
+  const documentTitle = (form?.watch?.('carousel_name') as string) || 'slides';
+  const imagesAsCarousel = !!form?.watch?.('post_as_images_carousel');
 
   const renderContent = topValue.map((p) => {
     const newContent = stripHtmlValidation(
@@ -283,6 +294,17 @@ export const LinkedinPreview: FC<{
 
     return { text: finalValue, images: p.image };
   });
+
+  // LinkedIn shows document posts as a page-by-page carousel: an attached PDF,
+  // or images with "Post as images carousel" on (2+ images, no video — the same
+  // rule checkValidity enforces). Anything else keeps the image strip.
+  const media = renderContent?.[0]?.images || [];
+  const pdf = media.find((m) => hasExtension(m?.path, 'pdf'));
+  const showImagesCarousel =
+    !pdf &&
+    imagesAsCarousel &&
+    media.length >= 2 &&
+    !media.some((m) => hasExtension(m?.path, 'mp4'));
   return (
     <div className="py-[15px] flex flex-col px-[15px] w-full gap-[20px] bg-bgLinkedin rounded-[12px]">
       <div className="flex gap-[8px]">
@@ -323,7 +345,20 @@ export const LinkedinPreview: FC<{
           __html: renderContent?.[0]?.text,
         }}
       />
-      {!!renderContent?.[0]?.images?.length && (
+      {pdf && (
+        <div className="-mx-[15px]">
+          <PdfCarousel src={mediaDir.set(pdf.path)} title={documentTitle} />
+        </div>
+      )}
+      {showImagesCarousel && (
+        <div className="-mx-[15px]">
+          <ImagesCarousel
+            images={media.map((m) => mediaDir.set(m.path))}
+            title={documentTitle}
+          />
+        </div>
+      )}
+      {!!media.length && !pdf && !showImagesCarousel && (
         <div className="h-[280px] -mx-[15px] overflow-hidden flex">
           {renderContent?.[0]?.images.map((image, index) => (
             <a
