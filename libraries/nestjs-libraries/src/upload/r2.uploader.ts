@@ -28,6 +28,8 @@ const ALLOWED_EXT_TO_MIME: Record<string, string> = {
   '.tif': 'image/tiff',
   '.tiff': 'image/tiff',
   '.mp4': 'video/mp4',
+  // LinkedIn document (carousel) posts — see custom.upload.validation.ts.
+  '.pdf': 'application/pdf',
 };
 
 function normalizeExtension(filename: string): string | null {

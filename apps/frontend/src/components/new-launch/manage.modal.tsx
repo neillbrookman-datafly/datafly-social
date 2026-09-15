@@ -272,12 +272,19 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       }));
 
       if (!dummy) {
-        const checkAllValid = await (
-          await fetch('/posts/valid', {
-            method: 'POST',
-            body: JSON.stringify({ type, posts }),
-          })
-        ).json();
+        const validResponse = await fetch('/posts/valid', {
+          method: 'POST',
+          body: JSON.stringify({ type, posts }),
+        });
+        if (!validResponse.ok) {
+          toaster.show(
+            t('post_validation_failed', 'Could not check the post. Nothing was saved, please try again.'),
+            'warning'
+          );
+          setLoading(false);
+          return;
+        }
+        const checkAllValid = await validResponse.json();
 
         const focus = (id: string, where: 'fix' | 'preview') => {
           integrationById(id)?.ref?.current?.[where]?.();
@@ -409,12 +416,31 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       }
 
       if (!dummy) {
-        addEditSets
-          ? addEditSets(data)
-          : await fetch('/posts', {
-              method: 'POST',
-              body: JSON.stringify(data),
-            });
+        if (addEditSets) {
+          addEditSets(data);
+        } else {
+          const saved = await fetch('/posts', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          });
+
+          // This response used to be ignored: a save the server rejected still
+          // said "Updated successfully" and closed the editor, silently losing
+          // the change. That's how a PDF carousel went missing from a post.
+          if (!saved.ok) {
+            const body = await saved.json().catch(() => ({} as any));
+            const detail = Array.isArray(body?.message)
+              ? body.message.join(', ')
+              : body?.message;
+            toaster.show(
+              t('post_save_failed', 'The post was not saved') +
+                (detail ? `: ${detail}` : '.'),
+              'warning'
+            );
+            setLoading(false);
+            return;
+          }
+        }
 
         if (!addEditSets) {
           mutate();

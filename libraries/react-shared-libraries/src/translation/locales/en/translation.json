@@ -740,5 +740,7 @@
   "you_can_drag_drop_videos": "You can also drag & drop videos.",
   "you_can_drag_drop_media_pdf_linkedin": "You can also drag & drop files. PDFs post to LinkedIn as a carousel.",
   "pdf_no_preview": "PDFs post to LinkedIn as a swipeable document carousel. There is no preview here.",
-  "document_title": "Document title (shown on LinkedIn)"
+  "document_title": "Document title (shown on LinkedIn)",
+  "post_save_failed": "The post was not saved",
+  "post_validation_failed": "Could not check the post. Nothing was saved, please try again."
 }
