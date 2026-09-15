@@ -47,7 +47,11 @@ export async function proxy(request: NextRequest) {
     nextUrl.pathname.startsWith('/uploads/') ||
     nextUrl.pathname.startsWith('/p/') ||
     nextUrl.pathname.startsWith('/provider/') ||
-    nextUrl.pathname.startsWith('/icons/')
+    nextUrl.pathname.startsWith('/icons/') ||
+    // pdf.js worker for the document carousel. Public preview pages (/p/) show
+    // carousels to signed-out viewers too, and a worker request redirected to
+    // login fails silently. It's the stock open-source library file.
+    nextUrl.pathname.startsWith('/pdfjs/')
   ) {
     return topResponse;
   }
