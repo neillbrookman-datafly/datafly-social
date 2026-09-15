@@ -21,6 +21,7 @@ const ALLOWED_MIME_TYPES = new Set<string>([
   'image/bmp',
   'image/tiff',
   'video/mp4',
+  'application/pdf',
   'audio/mpeg',
   'audio/mp4',
   'audio/wav',

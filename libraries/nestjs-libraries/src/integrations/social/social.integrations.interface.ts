@@ -165,6 +165,9 @@ export interface SocialProvider
   identifier: string;
   refreshWait?: boolean;
   convertToJPEG?: boolean;
+  /** Can publish an uploaded PDF (LinkedIn document posts). Everything else
+   *  has a PDF rejected at validation, before it can fail at publish time. */
+  acceptsPdf?: boolean;
   stripLinks?: () => boolean;
   refreshCron?: boolean;
   dto?: any;

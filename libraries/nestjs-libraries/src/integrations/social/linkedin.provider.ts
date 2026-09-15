@@ -23,12 +23,15 @@ import { Readable } from 'stream';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
 
 @Rules(
-  'LinkedIn can have maximum one attachment when selecting video, when choosing a carousel on LinkedIn minimum amount of attachment must be two, and only pictures, if uploading a video, LinkedIn can have only one attachment'
+  'LinkedIn can have maximum one attachment when selecting video, when choosing a carousel on LinkedIn minimum amount of attachment must be two, and only pictures, if uploading a video, LinkedIn can have only one attachment. A PDF is posted as a document carousel and must be the only attachment'
 )
 export class LinkedinProvider extends SocialAbstract implements SocialProvider {
   identifier = 'linkedin';
   name = 'LinkedIn';
   oneTimeToken = true;
+  // A PDF posts natively as a LinkedIn document — the swipeable carousel.
+  // Inherited by LinkedinPageProvider, so company pages get it too.
+  acceptsPdf = true;
 
   isBetweenSteps = false;
   // Personal-profile posting only needs self-serve scopes; the org scopes
@@ -48,8 +51,17 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     vals: any
   ): Promise<string | true> {
     const [firstPost, ...restPosts] = posts ?? [];
+    const pdfCount =
+      firstPost?.filter((p) => hasExtension(p?.path, 'pdf')).length ?? 0;
 
+    if (pdfCount > 0 && (firstPost?.length ?? 0) > 1) {
+      return 'A PDF must be the only attachment on a LinkedIn post.';
+    }
+
+    // The images-carousel toggle is hidden once a PDF is attached, and post()
+    // ignores it for a PDF — so a value left over from before can't block one.
     if (
+      pdfCount === 0 &&
       this.assetBoolean(vals?.post_as_images_carousel) &&
       ((firstPost?.length ?? 0) < 2 ||
         firstPost?.some((p) => (p?.path?.indexOf?.('mp4') ?? -1) > -1))
@@ -612,6 +624,10 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
           // Videos are never buffered: uploadPicture streams them from the
           // source chunk-by-chunk.
           mediaBuffer = { path: media.path };
+        } else if (hasExtension(media.path, 'pdf')) {
+          // Uploaded PDFs go to LinkedIn untouched — prepareMediaBuffer runs
+          // everything through sharp, which can't read a PDF.
+          mediaBuffer = Buffer.from(await readOrFetch(media.path));
         } else {
           mediaBuffer = await this.prepareMediaBuffer(media.path);
         }
@@ -826,9 +842,17 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
   ): Promise<PostResponse[]> {
     let processedPostDetails = postDetails;
     const [firstPost] = postDetails;
+    const imagesCarousel = this.assetBoolean(
+      firstPost.settings?.post_as_images_carousel
+    );
+    // An uploaded PDF is a document post in its own right — same LinkedIn
+    // content type the images carousel produces, minus the conversion.
+    const uploadedPdf = (firstPost.media || []).some((m) =>
+      hasExtension(m?.path, 'pdf')
+    );
 
     // Check if we should convert images to PDF carousel
-    if (this.assetBoolean(firstPost.settings?.post_as_images_carousel)) {
+    if (imagesCarousel && !uploadedPdf) {
       processedPostDetails = await this.convertImagesToPdfCarousel(
         postDetails,
         firstPost
@@ -857,7 +881,7 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
       processedFirstPost,
       mainPostMediaIds,
       type,
-      this.assetBoolean(firstPost.settings?.post_as_images_carousel)
+      imagesCarousel || uploadedPdf
     );
 
     // Return response for main post only

@@ -22,6 +22,7 @@ import EventEmitter from 'events';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import clsx from 'clsx';
 import { VideoFrame } from '@gitroom/react/helpers/video.frame';
+import { PdfTile } from '@gitroom/react/helpers/pdf.tile';
 import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
 import dynamic from 'next/dynamic';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
@@ -238,7 +239,7 @@ export const MediaBox: FC<{
         ? 'image/*'
         : type == 'video'
         ? 'video/mp4'
-        : 'image/*,video/mp4',
+        : 'image/*,video/mp4,application/pdf',
     onUploadSuccess: async (arr) => {
       await mutate();
       if (standalone) {
@@ -352,7 +353,22 @@ export const MediaBox: FC<{
         top: 10,
         children: (
           <div className="w-full h-full p-[50px]">
-            {hasExtension(media.path, 'mp4') ? (
+            {hasExtension(media.path, 'pdf') ? (
+              // No inline preview: /uploads is served with a sandbox CSP and
+              // frame-ancestors 'none' (hardening against scripted uploads),
+              // which blanks an embedded PDF. Not worth weakening for a preview.
+              <div className="flex flex-col items-center gap-[12px] py-[40px]">
+                <div className="w-[120px] h-[150px]">
+                  <PdfTile />
+                </div>
+                <p className="text-[14px] text-textColor text-center max-w-[360px]">
+                  {t(
+                    'pdf_no_preview',
+                    'PDFs post to LinkedIn as a swipeable document carousel. There is no preview here.'
+                  )}
+                </p>
+              </div>
+            ) : hasExtension(media.path, 'mp4') ? (
               <VideoFrame
                 autoplay={true}
                 url={mediaDirectory.set(media.path)}
@@ -528,7 +544,9 @@ export const MediaBox: FC<{
                 if (type === 'video') {
                   return hasExtension(f.path, 'mp4');
                 } else if (type === 'image') {
-                  return !hasExtension(f.path, 'mp4');
+                  return (
+                    !hasExtension(f.path, 'mp4') && !hasExtension(f.path, 'pdf')
+                  );
                 }
                 return true;
               })
@@ -580,7 +598,9 @@ export const MediaBox: FC<{
                           </svg>
                         </div>
                       </div>
-                      {hasExtension(media.path, 'mp4') ? (
+                      {hasExtension(media.path, 'pdf') ? (
+                        <PdfTile />
+                      ) : hasExtension(media.path, 'mp4') ? (
                         <VideoFrame url={mediaDirectory.set(media.path)} />
                       ) : (
                         <img
@@ -772,39 +792,43 @@ export const MultiMediaComponent: FC<{
                     <DragHandleIcon className="z-[20] dragging absolute pe-[1px] pb-[3px] -start-[4px] -top-[4px] cursor-move" />
 
                     <div className="w-full h-full relative group">
-                      <div
-                        onClick={async () => {
-                          modals.openModal({
-                            title: t('media_settings', 'Media Settings'),
-                            children: (close) => (
-                              <MediaComponentInner
-                                media={media as any}
-                                onClose={close}
-                                onSelect={(value: any) => {
-                                  onChange({
-                                    target: {
-                                      name: 'upload',
-                                      value: currentMedia.map((p) => {
-                                        if (p.id === media.id) {
-                                          return {
-                                            ...p,
-                                            ...value,
-                                          };
-                                        }
-                                        return p;
-                                      }),
-                                    },
-                                  });
-                                }}
-                              />
-                            ),
-                          });
-                        }}
-                        className="absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-[9]"
-                      >
-                        <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
-                      </div>
-                      {hasExtension(media?.path, 'mp4') ? (
+                      {!hasExtension(media?.path, 'pdf') && (
+                        <div
+                          onClick={async () => {
+                            modals.openModal({
+                              title: t('media_settings', 'Media Settings'),
+                              children: (close) => (
+                                <MediaComponentInner
+                                  media={media as any}
+                                  onClose={close}
+                                  onSelect={(value: any) => {
+                                    onChange({
+                                      target: {
+                                        name: 'upload',
+                                        value: currentMedia.map((p) => {
+                                          if (p.id === media.id) {
+                                            return {
+                                              ...p,
+                                              ...value,
+                                            };
+                                          }
+                                          return p;
+                                        }),
+                                      },
+                                    });
+                                  }}
+                                />
+                              ),
+                            });
+                          }}
+                          className="absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-[9]"
+                        >
+                          <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
+                        </div>
+                      )}
+                      {hasExtension(media?.path, 'pdf') ? (
+                        <PdfTile compact />
+                      ) : hasExtension(media?.path, 'mp4') ? (
                         <VideoFrame url={mediaDirectory.set(media?.path)} />
                       ) : (
                         <img

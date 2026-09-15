@@ -814,15 +814,24 @@ export class PostsService {
         }
 
         // Provider-specific media validation (the old client `checkValidity`).
+        // PDFs are checked centrally first: most providers' own checks predate
+        // PDF uploads and would wave one through to fail at publish time.
         let errors: string | true = true;
-        try {
-          errors = await provider.checkValidity(
-            media,
-            settings,
-            additionalSettings
-          );
-        } catch (err: any) {
-          errors = err?.message || 'Invalid media';
+        const hasPdf = media.some((entry) =>
+          entry.some((m) => hasExtension(m?.path, 'pdf'))
+        );
+        if (hasPdf && !provider.acceptsPdf) {
+          errors = `PDFs can only be posted to LinkedIn — remove the PDF from the ${integration.providerIdentifier} post.`;
+        } else {
+          try {
+            errors = await provider.checkValidity(
+              media,
+              settings,
+              additionalSettings
+            );
+          } catch (err: any) {
+            errors = err?.message || 'Invalid media';
+          }
         }
 
         const maximumCharacters = provider.maxLength(additionalSettings);

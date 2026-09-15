@@ -1,6 +1,7 @@
 import { FC } from 'react';
 import { clsx } from 'clsx';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import { PdfTile } from '@gitroom/react/helpers/pdf.tile';
 export const VideoOrImage: FC<{
   src: string;
   autoplay: boolean;
@@ -9,6 +10,9 @@ export const VideoOrImage: FC<{
   videoClassName?: string;
 }> = (props) => {
   const { src, autoplay, isContain, imageClassName, videoClassName } = props;
+  if (hasExtension(src, 'pdf')) {
+    return <PdfTile className={imageClassName} />;
+  }
   if (hasExtension(src, 'mp4')) {
     return (
       <video

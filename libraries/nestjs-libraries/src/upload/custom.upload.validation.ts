@@ -15,6 +15,9 @@ const ALLOWED_MIME_TYPES = new Set<string>([
   'image/bmp',
   'image/tiff',
   'video/mp4',
+  // PDFs are only ever published as LinkedIn document (carousel) posts;
+  // PostsService rejects them for every provider without `acceptsPdf`.
+  'application/pdf',
 ]);
 
 @Injectable()
@@ -62,6 +65,8 @@ export function getMaxSize(mimeType: string): number {
     return 10 * 1024 * 1024; // 10 MB
   } else if (mimeType.startsWith('video/')) {
     return 1024 * 1024 * 1024; // 1 GB
+  } else if (mimeType === 'application/pdf') {
+    return 100 * 1024 * 1024; // 100 MB — LinkedIn's document upload limit
   } else {
     throw new BadRequestException('Unsupported file type.');
   }

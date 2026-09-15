@@ -570,7 +570,8 @@ export const Editor: FC<{
       appendImages(result);
       uppy.clear();
     },
-    allowedFileTypes: 'image/*,video/mp4',
+    // PDFs are LinkedIn-only; the server rejects them for other providers.
+    allowedFileTypes: 'image/*,video/mp4,application/pdf',
     onStart: () => {},
     onEnd: () => setLoading(false),
   });
