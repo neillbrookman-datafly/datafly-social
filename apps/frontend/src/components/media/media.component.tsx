@@ -508,16 +508,39 @@ export const MediaBox: FC<{
                         "You don't have any media yet"
                       )}
                 </div>
+                {/* Worded per picker: the general library takes images, videos
+                    and PDFs, but avatar/thumbnail pickers are image-only and
+                    video pickers MP4-only (see allowedFileTypes above). */}
                 <div className="whitespace-pre-line text-newTextColor/[0.6] text-center">
-                  {t(
-                    'select_or_upload_pictures_max_1gb',
-                    'Select or upload pictures (maximum 1 GB per upload).'
-                  )}{' '}
+                  {type === 'image'
+                    ? t(
+                        'select_or_upload_images_max_1gb',
+                        'Select or upload images (maximum 1 GB per upload).'
+                      )
+                    : type === 'video'
+                    ? t(
+                        'select_or_upload_videos_max_1gb',
+                        'Select or upload MP4 videos (maximum 1 GB per upload).'
+                      )
+                    : t(
+                        'select_or_upload_media_max_1gb',
+                        'Select or upload images, videos or PDFs (maximum 1 GB per upload).'
+                      )}{' '}
                   {'\n'}
-                  {t(
-                    'you_can_drag_drop_pictures',
-                    'You can also drag & drop pictures.'
-                  )}
+                  {type === 'image'
+                    ? t(
+                        'you_can_drag_drop_images',
+                        'You can also drag & drop images.'
+                      )
+                    : type === 'video'
+                    ? t(
+                        'you_can_drag_drop_videos',
+                        'You can also drag & drop videos.'
+                      )
+                    : t(
+                        'you_can_drag_drop_media_pdf_linkedin',
+                        'You can also drag & drop files. PDFs post to LinkedIn as a carousel.'
+                      )}
                 </div>
                 <div className="forceChange flex gap-[8px]">
                   {btn}
