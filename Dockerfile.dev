@@ -8,6 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     nginx \
     wget \
+    # pm2 finds a process's children with `ps` when it stops or restarts one.
+    # Without procps it silently kills only the pnpm wrapper and orphans the
+    # real node process, which keeps its port — the next copy then crash-loops
+    # on EADDRINUSE (seen 2026-09-17: 16 restarts, duplicate workers).
+    procps \
 && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system www \

@@ -39,7 +39,7 @@ import {
   cacheQueries,
   compactName,
   matchConnectedPages,
-  recentlyLookedUp,
+  recentLookup,
   rememberLookup,
   vanityCandidates,
 } from '@gitroom/nestjs-libraries/integrations/social/linkedin.mentions';
@@ -373,10 +373,12 @@ export class IntegrationsController {
       // Every guess, every match: a handle guess can belong to a different
       // company, so stopping at the first hit can hide the right one.
       for (const vanity of vanityCandidates(query)) {
-        if (recentlyLookedUp(vanity)) {
+        const remembered = recentLookup(vanity);
+        if (remembered) {
+          found.push(...remembered);
           continue;
         }
-        rememberLookup(vanity);
+        let results: LinkedinMention[] = [];
         try {
           // LinkedinProvider.mention only uses the token; it throws on a 403.
           const result = await pageProvider.mention?.(
@@ -385,12 +387,12 @@ export class IntegrationsController {
             lookupVia.internalId,
             lookupVia
           );
-          if (Array.isArray(result)) {
-            found.push(...result);
-          }
+          results = Array.isArray(result) ? result : [];
         } catch {
           // Refused or unknown — the other guesses may still match.
         }
+        rememberLookup(vanity, results);
+        found.push(...results);
       }
       if (found.length) {
         await this._integrationService.insertMentions(

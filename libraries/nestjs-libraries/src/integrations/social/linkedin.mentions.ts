@@ -82,28 +82,33 @@ export function vanityCandidates(rawQuery: string): string[] {
 
 const LOOKUP_TTL_MS = 30 * 60 * 1000;
 const MAX_LOOKUPS = 500;
-const lookedUp = new Map<string, number>();
+const lookedUp = new Map<string, { until: number; results: LinkedinMention[] }>();
 
-/** Was this handle looked up recently? A hit is in the cache by then and a
- *  miss won't change, so either way there's no point asking LinkedIn again. */
-export function recentlyLookedUp(vanity: string, now = Date.now()) {
-  const until = lookedUp.get(vanity);
-  if (until === undefined) {
-    return false;
+/**
+ * What LinkedIn returned for this handle recently, or undefined if it hasn't
+ * been asked. The results are kept, not just the fact of asking: the name cache
+ * is searched by name, so a company found under a different name (typing
+ * "Treasure Data" finds トレジャーデータ株式会社 via "treasuredata") would
+ * otherwise show once and then vanish on the next keystroke.
+ */
+export function recentLookup(vanity: string, now = Date.now()): LinkedinMention[] | undefined {
+  const entry = lookedUp.get(vanity);
+  if (!entry) {
+    return undefined;
   }
-  if (until <= now) {
+  if (entry.until <= now) {
     lookedUp.delete(vanity);
-    return false;
+    return undefined;
   }
-  return true;
+  return entry.results;
 }
 
-export function rememberLookup(vanity: string, now = Date.now()) {
-  if (lookedUp.size >= MAX_LOOKUPS) {
+export function rememberLookup(vanity: string, results: LinkedinMention[], now = Date.now()) {
+  if (lookedUp.size >= MAX_LOOKUPS && !lookedUp.has(vanity)) {
     // Oldest entry first — Map keeps insertion order.
     lookedUp.delete(lookedUp.keys().next().value as string);
   }
-  lookedUp.set(vanity, now + LOOKUP_TTL_MS);
+  lookedUp.set(vanity, { until: now + LOOKUP_TTL_MS, results });
 }
 
 /** Letters and digits only, lowercased: "Treasure AI" and "Treasureai" agree. */
