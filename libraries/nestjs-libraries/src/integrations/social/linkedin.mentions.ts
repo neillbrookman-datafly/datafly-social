@@ -15,8 +15,12 @@
  *  - handle guesses for a typed name, and handles pulled from a pasted URL;
  *  - one shared cache for every LinkedIn channel, so a company found once is
  *    then findable by name;
- *  - a short memory of handles LinkedIn didn't know, because the editor looks
+ *  - a short memory of handles already looked up, because the editor looks
  *    up as you type and the Community app is on a limited Development Tier.
+ *
+ * Handle guesses can land on the wrong company: "Treasure AI" → treasure-ai is
+ * Treasure Financial, while treasureai is a different page. So every guess is
+ * tried and every match is offered, rather than stopping at the first.
  */
 
 export type LinkedinMention = { id: string; label: string; image: string };
@@ -76,29 +80,42 @@ export function vanityCandidates(rawQuery: string): string[] {
   return [...new Set(candidates)].filter((c) => /^[a-z0-9-]+$/.test(c));
 }
 
-const MISS_TTL_MS = 30 * 60 * 1000;
-const MAX_MISSES = 500;
-const misses = new Map<string, number>();
+const LOOKUP_TTL_MS = 30 * 60 * 1000;
+const MAX_LOOKUPS = 500;
+const lookedUp = new Map<string, number>();
 
-/** Did LinkedIn recently say it doesn't know this handle? */
-export function recentlyMissed(vanity: string, now = Date.now()) {
-  const until = misses.get(vanity);
+/** Was this handle looked up recently? A hit is in the cache by then and a
+ *  miss won't change, so either way there's no point asking LinkedIn again. */
+export function recentlyLookedUp(vanity: string, now = Date.now()) {
+  const until = lookedUp.get(vanity);
   if (until === undefined) {
     return false;
   }
   if (until <= now) {
-    misses.delete(vanity);
+    lookedUp.delete(vanity);
     return false;
   }
   return true;
 }
 
-export function rememberMiss(vanity: string, now = Date.now()) {
-  if (misses.size >= MAX_MISSES) {
+export function rememberLookup(vanity: string, now = Date.now()) {
+  if (lookedUp.size >= MAX_LOOKUPS) {
     // Oldest entry first — Map keeps insertion order.
-    misses.delete(misses.keys().next().value as string);
+    lookedUp.delete(lookedUp.keys().next().value as string);
   }
-  misses.set(vanity, now + MISS_TTL_MS);
+  lookedUp.set(vanity, now + LOOKUP_TTL_MS);
+}
+
+/** Letters and digits only, lowercased: "Treasure AI" and "Treasureai" agree. */
+export function compactName(s: string) {
+  return (s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+/** Cache searches worth running: as typed, and without spaces or hyphens so a
+ *  multi-word query still finds a company whose name is written as one word. */
+export function cacheQueries(rawQuery: string): string[] {
+  const q = rawQuery.trim().replace(/^@/, '');
+  return [...new Set([q, q.replace(/[\s-]+/g, '')])].filter(Boolean);
 }
 
 function normalise(s: string) {

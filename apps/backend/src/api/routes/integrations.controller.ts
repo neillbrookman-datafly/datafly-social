@@ -36,9 +36,11 @@ import {
   LINKEDIN_PROVIDERS,
   LinkedinMention,
   MIN_LOOKUP_LENGTH,
+  cacheQueries,
+  compactName,
   matchConnectedPages,
-  recentlyMissed,
-  rememberMiss,
+  recentlyLookedUp,
+  rememberLookup,
   vanityCandidates,
 } from '@gitroom/nestjs-libraries/integrations/social/linkedin.mentions';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
@@ -346,21 +348,35 @@ export class IntegrationsController {
 
     const own = matchConnectedPages(pages, query);
     const cached = (
-      await this._integrationService.getMentions(LINKEDIN_MENTION_CACHE, query)
-    ).map((m) => ({ id: m.username, label: m.name, image: m.image || '' }));
+      await Promise.all(
+        cacheQueries(query).map((q) =>
+          this._integrationService.getMentions(LINKEDIN_MENTION_CACHE, q)
+        )
+      )
+    )
+      .flat()
+      .map((m) => ({ id: m.username, label: m.name, image: m.image || '' }));
 
-    // Only ask LinkedIn about companies we don't already know.
-    let found: LinkedinMention[] = [];
+    // Ask LinkedIn unless we already know a company by exactly this name. A
+    // partial match isn't enough: "Treasure" in the cache mustn't hide the
+    // company actually being typed.
+    const target = compactName(query);
+    const knownExactly = [...own, ...cached].some((m) => compactName(m.label) === target);
+
+    const found: LinkedinMention[] = [];
     const lookupVia =
       integration.providerIdentifier === 'linkedin-page' && !integration.refreshNeeded
         ? integration
         : pages.find((p) => !p.refreshNeeded);
-    if (!own.length && !cached.length && lookupVia && query.length >= MIN_LOOKUP_LENGTH) {
+    if (!knownExactly && lookupVia && query.length >= MIN_LOOKUP_LENGTH) {
       const pageProvider = this._integrationManager.getSocialIntegration('linkedin-page');
+      // Every guess, every match: a handle guess can belong to a different
+      // company, so stopping at the first hit can hide the right one.
       for (const vanity of vanityCandidates(query)) {
-        if (recentlyMissed(vanity)) {
+        if (recentlyLookedUp(vanity)) {
           continue;
         }
+        rememberLookup(vanity);
         try {
           // LinkedinProvider.mention only uses the token; it throws on a 403.
           const result = await pageProvider.mention?.(
@@ -369,14 +385,12 @@ export class IntegrationsController {
             lookupVia.internalId,
             lookupVia
           );
-          found = Array.isArray(result) ? result : [];
+          if (Array.isArray(result)) {
+            found.push(...result);
+          }
         } catch {
-          found = [];
+          // Refused or unknown — the other guesses may still match.
         }
-        if (found.length) {
-          break;
-        }
-        rememberMiss(vanity);
       }
       if (found.length) {
         await this._integrationService.insertMentions(
