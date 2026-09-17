@@ -869,11 +869,30 @@ export const OnlyEditor = forwardRef<
   const t = useT();
   const fetch = useFetch();
 
-  const { internal } = useLaunchStore(
-    useShallow((state) => ({
-      internal: state.internal.find((p) => p.integration.id === state.current),
-    }))
-  );
+  // Which channel's tag lookup applies right now. Read from the store at call
+  // time, never captured at render: useEditor builds the editor once, so the
+  // old `internal`-at-creation check meant a post started in the shared editor
+  // could never tag, even after switching to the channel — only reopening a
+  // saved post (which starts in the channel's editor) could.
+  const mentionIntegrationId = useCallback((): string | undefined => {
+    const state = useLaunchStore.getState();
+    if (state.current !== 'global') {
+      return state.internal.find((p) => p.integration.id === state.current)
+        ?.integration.id;
+    }
+    // Shared editor: tags only make sense when every selected channel writes
+    // them the same way — a LinkedIn company tag means nothing on X.
+    const selected = state.selectedIntegrations.map((s) => s.integration);
+    if (!selected.length) {
+      return undefined;
+    }
+    const family = (identifier: string) =>
+      identifier.startsWith('linkedin') ? 'linkedin' : identifier;
+    const first = family(selected[0].identifier);
+    return selected.every((i) => family(i.identifier) === first)
+      ? selected[0].id
+      : undefined;
+  }, []);
 
   const loadList = useCallback(
     async (query: string) => {
@@ -881,7 +900,8 @@ export const OnlyEditor = forwardRef<
         return [];
       }
 
-      if (!internal?.integration.id) {
+      const integrationId = mentionIntegrationId();
+      if (!integrationId) {
         return [];
       }
 
@@ -890,7 +910,7 @@ export const OnlyEditor = forwardRef<
           method: 'POST',
           body: JSON.stringify({
             name: 'mention',
-            id: internal.integration.id,
+            id: integrationId,
             data: { query },
           }),
         });
@@ -902,7 +922,7 @@ export const OnlyEditor = forwardRef<
         return [];
       }
     },
-    [internal, fetch]
+    [fetch, mentionIntegrationId]
   );
 
   const editor = useEditor({
@@ -998,26 +1018,24 @@ export const OnlyEditor = forwardRef<
             }),
           ]
         : []),
-      ...(internal?.integration?.id
-        ? [
-            Mention.configure({
-              HTMLAttributes: {
-                class: 'mention',
-              },
-              renderHTML({ options, node }) {
-                return [
-                  'span',
-                  mergeAttributes(options.HTMLAttributes, {
-                    'data-mention-id': node.attrs.id || '',
-                    'data-mention-label': node.attrs.label || '',
-                  }),
-                  `@${node.attrs.label}`,
-                ];
-              },
-              suggestion: suggestion(loadList),
+      // Always installed; whether @ opens a lookup is decided per keystroke by
+      // mentionIntegrationId (see above), not once when the editor is built.
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention',
+        },
+        renderHTML({ options, node }) {
+          return [
+            'span',
+            mergeAttributes(options.HTMLAttributes, {
+              'data-mention-id': node.attrs.id || '',
+              'data-mention-label': node.attrs.label || '',
             }),
-          ]
-        : []),
+            `@${node.attrs.label}`,
+          ];
+        },
+        suggestion: suggestion(loadList, () => !!mentionIntegrationId()),
+      }),
       ...(editorType === 'html' || editorType === 'markdown'
         ? [
             Heading.configure({

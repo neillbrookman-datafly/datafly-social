@@ -3,6 +3,8 @@
 import React, { FC, useEffect, useImperativeHandle, useState } from 'react';
 import { computePosition, flip, shift } from '@floating-ui/dom';
 import { posToDOMRect, ReactRenderer } from '@tiptap/react';
+import { exitSuggestion } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
 
 // Debounce utility for TipTap
 const debounce = <T extends any[]>(
@@ -55,6 +57,9 @@ const MentionList: FC = (props: any) => {
 
   useImperativeHandle(props.ref, () => ({
     onKeyDown: ({ event }: { event: any }) => {
+      if (!props.items?.length) {
+        return false;
+      }
       if (event.key === 'ArrowUp') {
         upHandler();
         return true;
@@ -78,8 +83,15 @@ const MentionList: FC = (props: any) => {
     return null;
   }
 
+  const hasItems = Array.isArray(props?.items) && props.items.length > 0;
+
   return (
-    <div className="dropdown-menu bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-2">
+    <div
+      onMouseDown={(e) => e.preventDefault()}
+      className={`dropdown-menu bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto p-2 ${
+        hasItems && !props?.loading ? '' : 'pointer-events-none'
+      }`}
+    >
       {props?.items?.none ? (
         <div className="flex items-center justify-center p-2 text-gray-500">
           We don't have autocomplete for this social media
@@ -143,16 +155,38 @@ const updatePosition = (editor: any, element: any) => {
   });
 };
 
+// A query this many words long with nothing found is a sentence, not a name.
+const GIVE_UP_WORDS = 4;
+
 export const suggestion = (
   loadList: (
     query: string
-  ) => Promise<{ image: string; label: string; id: string }[]>
+  ) => Promise<{ image: string; label: string; id: string }[]>,
+  /** Whether tagging applies right now. Read at call time — the editor that
+   *  owns this is built once, so anything captured at creation goes stale. */
+  canMention?: () => boolean
 ) => {
   // Create debounced version of loadList once
   const debouncedLoadList = debounce(loadList, 500);
   let component: any;
+  // Our own key, so the dropdown can be closed properly (exitSuggestion) rather
+  // than just hidden: a hidden-but-active suggestion kept a "No results found"
+  // box floating over the page, where it swallowed clicks — including on
+  // "Yes, close it" when closing the post, leaving the editor stuck open.
+  const pluginKey = new PluginKey('mention');
+  const close = (view: any) => {
+    // Deferred: closing dispatches a transaction, which mustn't happen inside
+    // the editor update that called us.
+    setTimeout(() => {
+      if (view && !view.isDestroyed) {
+        exitSuggestion(view, pluginKey);
+      }
+    }, 0);
+  };
 
   return {
+    pluginKey,
+    allow: () => (canMention ? canMention() : true),
     allowSpaces: true,
     items: async ({ query }: { query: string }) => {
       if (!query || query.length < 2) {
@@ -172,6 +206,7 @@ export const suggestion = (
     render: () => {
       let currentQuery = '';
       let isLoadingQuery = false;
+      let stopWatchingBlur: (() => void) | undefined;
 
       return {
         onBeforeStart: (props: any) => {
@@ -199,9 +234,15 @@ export const suggestion = (
           const container =
             document.querySelector('.mantine-Paper-root') || document.body;
           container.appendChild(component.element);
-
           updatePosition(props.editor, component.element);
           component.updateProps({ ...props, loading: true });
+
+          // Leaving the editor closes the dropdown. Clicking inside the
+          // dropdown doesn't blur (its mousedown is prevented), so picking an
+          // item still works.
+          const onBlur = () => close(props.editor.view);
+          props.editor.on('blur', onBlur);
+          stopWatchingBlur = () => props.editor.off('blur', onBlur);
         },
 
         onUpdate(props: any) {
@@ -227,6 +268,17 @@ export const suggestion = (
 
           component.updateProps({ ...props, loading: false, stop: false });
 
+          // Nothing found and the "name" has run on for several words: they've
+          // carried on writing, so stop following the cursor around.
+          if (
+            Array.isArray(props.items) &&
+            props.items.length === 0 &&
+            newQuery.trim().split(/\s+/).length >= GIVE_UP_WORDS
+          ) {
+            close(props.editor.view);
+            return;
+          }
+
           if (!props.clientRect) {
             return;
           }
@@ -236,15 +288,20 @@ export const suggestion = (
 
         onKeyDown(props: any) {
           if (props.event.key === 'Escape') {
-            component.destroy();
-
+            close(props.view);
             return true;
           }
 
-          return component.ref?.onKeyDown(props);
+          const handled = component.ref?.onKeyDown(props);
+          // Enter with nothing to pick is a new line: close and let it through.
+          if (!handled && props.event.key === 'Enter') {
+            close(props.view);
+          }
+          return handled;
         },
 
         onExit() {
+          stopWatchingBlur?.();
           component.element.remove();
           component.destroy();
         },
