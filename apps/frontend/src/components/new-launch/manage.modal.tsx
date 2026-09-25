@@ -13,6 +13,7 @@ import { AddEditModalProps } from '@gitroom/frontend/components/new-launch/add.e
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { PicksSocialsComponent } from '@gitroom/frontend/components/new-launch/picks.socials.component';
+import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 import { EditorWrapper } from '@gitroom/frontend/components/new-launch/editor';
 import { SelectCurrent } from '@gitroom/frontend/components/new-launch/select.current';
 import { ShowAllProviders } from '@gitroom/frontend/components/new-launch/providers/show.all.providers';
@@ -53,6 +54,26 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const toaster = useToaster();
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
+
+  // A PDF posts to LinkedIn as a carousel, and its title comes from channel
+  // settings — which start collapsed, so nothing hinted the carousel could be
+  // named before posting. Open them the first time a PDF is attached; closing
+  // them again sticks.
+  const hasPdfAttachment = useLaunchStore((state) => {
+    const lists = [state.global, ...state.internal.map((i) => i.integrationValue)];
+    return lists.some((list) =>
+      (list || []).some((value: any) =>
+        (value?.media || []).some((media: any) => hasExtension(media?.path, 'pdf'))
+      )
+    );
+  });
+  const openedForPdf = useRef(false);
+  useEffect(() => {
+    if (hasPdfAttachment && !openedForPdf.current) {
+      openedForPdf.current = true;
+      setShowSettings(true);
+    }
+  }, [hasPdfAttachment]);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
 
   const { addEditSets, mutate, customClose, dummy } = props;

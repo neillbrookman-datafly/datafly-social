@@ -8,10 +8,12 @@ export const VideoOrImage: FC<{
   isContain?: boolean;
   imageClassName?: string;
   videoClassName?: string;
+  /** Title for a PDF shown as a LinkedIn document carousel. */
+  title?: string;
 }> = (props) => {
-  const { src, autoplay, isContain, imageClassName, videoClassName } = props;
+  const { src, autoplay, isContain, imageClassName, videoClassName, title } = props;
   if (hasExtension(src, 'pdf')) {
-    return <PdfCarousel src={src} className={imageClassName} />;
+    return <PdfCarousel src={src} title={title} className={imageClassName} />;
   }
   if (hasExtension(src, 'mp4')) {
     return (

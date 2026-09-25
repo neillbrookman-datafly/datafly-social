@@ -61,7 +61,7 @@ const LinkedInSettings = () => {
           <Input
             label={
               hasPdf
-                ? t('document_title', 'Document title (shown on LinkedIn)')
+                ? t('carousel_title', 'Carousel title (shown on LinkedIn)')
                 : t('carousel_name', 'Carousel slide name')
             }
             placeholder={pdfTitle || DEFAULT_DOCUMENT_TITLE}

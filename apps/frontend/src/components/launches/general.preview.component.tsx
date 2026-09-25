@@ -2,6 +2,7 @@ import { useIntegration } from '@gitroom/frontend/components/launches/helpers/us
 import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
 import clsx from 'clsx';
 import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import { documentTitleFromFileName } from '@gitroom/helpers/utils/document.title';
 import { FC } from 'react';
 import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import SafeImage from '@gitroom/react/helpers/safe.image';
@@ -135,6 +136,13 @@ export const GeneralPreviewComponent: FC<{
                       <VideoOrImage
                         autoplay={true}
                         src={mediaDir.set(image.path)}
+                        // So a PDF previews under the title it will post with,
+                        // rather than a bare "Document".
+                        title={
+                          documentTitleFromFileName(
+                            (image as any)?.originalName
+                          ) || undefined
+                        }
                       />
                     </a>
                   ))}
