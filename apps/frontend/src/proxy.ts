@@ -12,6 +12,20 @@ acceptLanguage.languages(languages);
 
 // This function can be marked `async` if using `await` inside
 export async function proxy(request: NextRequest) {
+  // Scanner guard. The site has no Server Actions and no form that posts to a
+  // page, so a Server Action header or a non-GET request to a page can only be
+  // a probe for Next.js / React Server Components bugs. Refuse it before Next
+  // parses anything.
+  if (request.headers.has('next-action')) {
+    return new NextResponse(null, { status: 404 });
+  }
+  if (
+    request.method !== 'GET' &&
+    request.method !== 'HEAD' &&
+    !request.nextUrl.pathname.startsWith('/api/')
+  ) {
+    return new NextResponse(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
+  }
   const nextUrl = request.nextUrl;
   const authCookie =
     request.cookies.get('auth') ||
