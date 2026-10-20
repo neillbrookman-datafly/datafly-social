@@ -327,6 +327,57 @@ export class IntegrationRepository {
     return upsert;
   }
 
+  /** LinkedIn gives each app its own ID for a person, so a personal profile
+   *  first connected through the basic app comes back with a different ID when
+   *  it's reconnected through the approved one. Moves the channel (in every
+   *  workspace it's connected in) to the new ID so its posts and settings stay
+   *  with it, if the reconnecting account is plainly the same person. Returns
+   *  false, changing nothing, if it isn't, or if the move would collide. */
+  async moveLinkedinProfileId(
+    orgId: string,
+    oldInternalId: string,
+    newInternalId: string,
+    name: string,
+    vanity?: string
+  ) {
+    const norm = (s?: string | null) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const channels = await this._integration.model.integration.findMany({
+      where: { providerIdentifier: 'linkedin', internalId: oldInternalId, deletedAt: null },
+    });
+    const here = channels.find((c) => c.organizationId === orgId);
+    if (!here) return false;
+    const samePerson =
+      (!!norm(name) && norm(here.name) === norm(name)) || (!!vanity && here.profile === vanity);
+    if (!samePerson) return false;
+
+    // The new ID mustn't already be a channel in any of these workspaces.
+    const clash = await this._integration.model.integration.findFirst({
+      where: { internalId: newInternalId, organizationId: { in: channels.map((c) => c.organizationId) } },
+    });
+    if (clash) return false;
+
+    await this._integration.model.integration.updateMany({
+      where: { id: { in: channels.map((c) => c.id) } },
+      data: { internalId: newInternalId, rootInternalId: newInternalId },
+    });
+    return true;
+  }
+
+  /** Connected channels whose connection could run out (see ChannelExpiryService). */
+  channelsForExpiryCheck() {
+    return this._integration.model.integration.findMany({
+      where: { deletedAt: null, disabled: false, inBetweenSteps: false, refreshNeeded: false },
+      select: {
+        id: true,
+        organizationId: true,
+        name: true,
+        providerIdentifier: true,
+        refreshToken: true,
+        tokenExpiration: true,
+      },
+    });
+  }
+
   needsToBeRefreshed() {
     return this._integration.model.integration.findMany({
       where: {

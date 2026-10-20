@@ -1,3 +1,4 @@
+import { ChannelExpiryService } from '@gitroom/backend/services/channel-expiry/channel-expiry.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AuthController } from '@gitroom/backend/api/routes/auth.controller';
 import { AuthService } from '@gitroom/backend/services/auth/auth.service';
@@ -79,6 +80,7 @@ const authenticatedController = [
     ...authenticatedController,
   ],
   providers: [
+    ChannelExpiryService,
     AuthService,
     StripeService,
     OpenaiService,

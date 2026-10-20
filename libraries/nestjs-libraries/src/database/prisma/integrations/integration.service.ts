@@ -203,6 +203,10 @@ export class IntegrationService {
     );
   }
 
+  moveLinkedinProfileId(orgId: string, oldInternalId: string, newInternalId: string, name: string, vanity?: string) {
+    return this._integrationRepository.moveLinkedinProfileId(orgId, oldInternalId, newInternalId, name, vanity);
+  }
+
   async refreshNeeded(org: string, id: string) {
     return this._integrationRepository.refreshNeeded(org, id);
   }

@@ -23,6 +23,35 @@ import imageToPDF from 'image-to-pdf';
 import { Readable } from 'stream';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
 
+// Personal profiles connect through the Community Management ("approved") app
+// when it's configured, the same app as company pages. LinkedIn only gives
+// renewal tokens to approved apps: through the basic app a profile's
+// connection died every 60 days with no way to renew it, and posts failed
+// until someone noticed (October 2026). Through the approved app it renews
+// itself for a year, like the pages.
+//
+// The approved app can't grant the Sign-In scopes (openid/profile), so identity
+// comes from /v2/me. It requests exactly the page provider's scopes: a person's
+// profile and the pages they connected share one token (oneTimeToken, keyed on
+// rootInternalId), so a narrower profile token would be copied over the pages'
+// and break page posting.
+export const linkedinApprovedApp = () =>
+  !!(process.env.LINKEDIN_PAGE_CLIENT_ID && process.env.LINKEDIN_PAGE_CLIENT_SECRET);
+
+export const LINKEDIN_APPROVED_SCOPES = [
+  'w_member_social',
+  'r_basicprofile',
+  'rw_organization_admin',
+  'w_organization_social',
+  'r_organization_social',
+];
+
+/** The LinkedIn app personal profiles sign in through. */
+const profileApp = () =>
+  linkedinApprovedApp()
+    ? { id: process.env.LINKEDIN_PAGE_CLIENT_ID!, secret: process.env.LINKEDIN_PAGE_CLIENT_SECRET! }
+    : { id: process.env.LINKEDIN_CLIENT_ID!, secret: process.env.LINKEDIN_CLIENT_SECRET! };
+
 @Rules(
   'LinkedIn can have maximum one attachment when selecting video, when choosing a carousel on LinkedIn minimum amount of attachment must be two, and only pictures, if uploading a video, LinkedIn can have only one attachment. A PDF is posted as a document carousel and must be the only attachment'
 )
@@ -35,11 +64,11 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
   acceptsPdf = true;
 
   isBetweenSteps = false;
-  // Personal-profile posting only needs self-serve scopes; the org scopes
-  // (r_basicprofile, rw_organization_admin, w_organization_social,
-  // r_organization_social) require LinkedIn Community Management approval
-  // and live in LinkedinPageProvider, which overrides this list.
-  scopes = ['openid', 'profile', 'w_member_social'];
+  // Through the approved app, the page scopes (see above). Without it, the
+  // basic app's self-serve scopes: they post, but can't be renewed.
+  scopes = linkedinApprovedApp()
+    ? [...LINKEDIN_APPROVED_SCOPES]
+    : ['openid', 'profile', 'w_member_social'];
   override maxConcurrentJob = 2;
   refreshWait = true;
   editor = 'normal' as const;
@@ -118,31 +147,13 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
         body: new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token,
-          client_id: process.env.LINKEDIN_CLIENT_ID!,
-          client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+          client_id: profileApp().id,
+          client_secret: profileApp().secret,
         }),
       })
     ).json();
 
-    const { vanityName } = await (
-      await fetch('https://api.linkedin.com/v2/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
-
-    const {
-      name,
-      sub: id,
-      picture,
-    } = await (
-      await fetch('https://api.linkedin.com/v2/userinfo', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
+    const { id, name, picture, username } = await this.member(accessToken);
 
     return {
       id,
@@ -151,15 +162,45 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
       expiresIn: expires_in,
       name,
       picture: picture || '',
-      username: vanityName,
+      username,
     };
+  }
+
+  /** Who a token belongs to. The approved app has no OpenID scopes, so it
+   *  reads /v2/me (with the largest profile photo); the basic app reads
+   *  /v2/userinfo as it always has. */
+  protected async member(accessToken: string) {
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    if (linkedinApprovedApp()) {
+      const me = await (
+        await fetch(
+          'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,vanityName,profilePicture(displayImage~:playableStreams))',
+          { headers }
+        )
+      ).json();
+      const photos = me.profilePicture?.['displayImage~']?.elements ?? [];
+      return {
+        id: me.id as string,
+        name: `${me.localizedFirstName || ''} ${me.localizedLastName || ''}`.trim(),
+        picture: (photos[photos.length - 1]?.identifiers?.[0]?.identifier as string) || '',
+        username: me.vanityName as string | undefined,
+      };
+    }
+
+    const { name, sub: id, picture } = await (
+      await fetch('https://api.linkedin.com/v2/userinfo', { headers })
+    ).json();
+    const { vanityName } = await (
+      await fetch('https://api.linkedin.com/v2/me', { headers })
+    ).json();
+    return { id: id as string, name: name as string, picture: (picture as string) || '', username: vanityName as string | undefined };
   }
 
   async generateAuthUrl() {
     const state = makeId(6);
     const codeVerifier = makeId(30);
     const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${
-      process.env.LINKEDIN_CLIENT_ID
+      profileApp().id
     }&prompt=none&redirect_uri=${encodeURIComponent(
       `${process.env.FRONTEND_URL}/integrations/social/linkedin`
     )}&state=${state}&scope=${encodeURIComponent(this.scopes.join(' '))}`;
@@ -184,8 +225,8 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
         params.refresh ? `?refresh=${params.refresh}` : ''
       }`
     );
-    body.append('client_id', process.env.LINKEDIN_CLIENT_ID!);
-    body.append('client_secret', process.env.LINKEDIN_CLIENT_SECRET!);
+    body.append('client_id', profileApp().id);
+    body.append('client_secret', profileApp().secret);
 
     const {
       access_token: accessToken,
@@ -204,25 +245,7 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
 
     this.checkScopes(this.scopes, scope);
 
-    const {
-      name,
-      sub: id,
-      picture,
-    } = await (
-      await fetch('https://api.linkedin.com/v2/userinfo', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
-
-    const { vanityName } = await (
-      await fetch('https://api.linkedin.com/v2/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
+    const { id, name, picture, username } = await this.member(accessToken);
 
     return {
       id,
@@ -231,7 +254,7 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
       expiresIn,
       name,
       picture,
-      username: vanityName,
+      username,
     };
   }
 

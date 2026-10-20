@@ -185,9 +185,23 @@ export class NoAuthIntegrationsController {
     }
 
     if (refresh && String(id) !== String(refresh)) {
-      throw new NotEnoughScopes(
-        'Please refresh the channel that needs to be refreshed'
-      );
+      // A personal LinkedIn profile reconnected through the approved app comes
+      // back with that app's ID for the person (LinkedIn IDs are per app):
+      // carry the channel across rather than refuse it, if it's the same person.
+      const moved =
+        integration === 'linkedin' &&
+        (await this._integrationService.moveLinkedinProfileId(
+          org.id,
+          String(refresh),
+          String(id),
+          name,
+          username
+        ));
+      if (!moved) {
+        throw new NotEnoughScopes(
+          'Please refresh the channel that needs to be refreshed'
+        );
+      }
     }
 
     let validName = name;
