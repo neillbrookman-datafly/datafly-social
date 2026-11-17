@@ -7,6 +7,7 @@ import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/s
 import sharp from 'sharp';
 import { createReadStream, statSync } from 'fs';
 import { Readable } from 'stream';
+import { localUploadPath } from '@gitroom/nestjs-libraries/integrations/local.upload.path';
 
 export type ValidityMedia = {
   path: string;
@@ -176,8 +177,10 @@ export abstract class SocialAbstract {
   }
 
   // Resolves the total byte size of the media without loading it into memory:
-  // a HEAD request for remote URLs, statSync for local files.
+  // a HEAD request for remote URLs, statSync for local files (including our
+  // own uploads, see localUploadPath).
   protected async mediaSize(path: string, identifier = ''): Promise<number> {
+    path = localUploadPath(path) ?? path;
     if (path.indexOf('http') === 0) {
       // the media path is user-influenced, keep the SSRF-safe dispatcher that
       // this.fetch applies to every other outbound request. identity encoding
@@ -214,6 +217,7 @@ export abstract class SocialAbstract {
     end: number,
     identifier = ''
   ): Promise<Buffer> {
+    path = localUploadPath(path) ?? path;
     if (path.indexOf('http') === 0) {
       const response = await fetch(path, {
         headers: {
@@ -252,6 +256,7 @@ export abstract class SocialAbstract {
     path: string,
     identifier = ''
   ): Promise<Readable> {
+    path = localUploadPath(path) ?? path;
     if (path.indexOf('http') !== 0) {
       return createReadStream(path);
     }
