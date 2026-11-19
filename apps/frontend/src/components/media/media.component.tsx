@@ -844,7 +844,19 @@ export const MultiMediaComponent: FC<{
                               ),
                             });
                           }}
-                          className="absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-[9]"
+                          // Videos keep the button showing, as it's where their
+                          // cover frame is chosen; images show it on hover.
+                          title={
+                            hasExtension(media?.path, 'mp4')
+                              ? t('choose_cover_frame', 'Choose the cover frame')
+                              : undefined
+                          }
+                          className={clsx(
+                            'absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] group-hover:opacity-100 transition-opacity z-[9]',
+                            hasExtension(media?.path, 'mp4')
+                              ? 'opacity-70'
+                              : 'opacity-0'
+                          )}
                         >
                           <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
                         </div>
@@ -852,7 +864,16 @@ export const MultiMediaComponent: FC<{
                       {hasExtension(media?.path, 'pdf') ? (
                         <PdfTile compact />
                       ) : hasExtension(media?.path, 'mp4') ? (
-                        <VideoFrame url={mediaDirectory.set(media?.path)} />
+                        (media as { thumbnail?: string }).thumbnail ? (
+                          <img
+                            className="w-full h-full object-cover rounded-[4px]"
+                            src={mediaDirectory.set(
+                              (media as { thumbnail?: string }).thumbnail!
+                            )}
+                          />
+                        ) : (
+                          <VideoFrame url={mediaDirectory.set(media?.path)} />
+                        )
                       ) : (
                         <img
                           className="w-full h-full object-cover rounded-[4px]"

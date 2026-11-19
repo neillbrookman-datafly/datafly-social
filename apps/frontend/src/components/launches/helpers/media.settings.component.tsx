@@ -413,6 +413,8 @@ export const MediaComponentInner: FC<{
                       onClick={() => {
                         setNewThumbnail(null);
                         setThumbnail(null);
+                        // Instagram picks its cover by this offset, so clear it too.
+                        setThumbnailTimestamp(null);
                       }}
                       className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-opacity-80 transition-all flex-1 border border-red-700"
                     >

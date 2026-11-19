@@ -758,27 +758,61 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     let finalId = '';
     let finalUrl = '';
     if (hasExtension(firstPost?.media?.[0]?.path, 'mp4')) {
-      const {
-        id: videoId,
-        permalink_url,
-        ...all
-      } = await (
-        await this.fetch(
-          `https://graph.facebook.com/v20.0/${id}/videos?access_token=${accessToken}&fields=id,permalink_url`,
+      const videoUrl = `https://graph.facebook.com/v20.0/${id}/videos?access_token=${accessToken}&fields=id,permalink_url`;
+      const video = {
+        file_url: firstPost?.media?.[0]?.path!,
+        description: firstPost.message,
+        published: true,
+      };
+      const postVideo = () =>
+        this.fetch(
+          videoUrl,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              file_url: firstPost?.media?.[0]?.path!,
-              description: firstPost.message,
-              published: true,
-            }),
+            body: JSON.stringify(video),
           },
           'upload mp4'
-        )
-      ).json();
+        );
+
+      // The cover frame chosen in the editor goes up with the video as `thumb`
+      // (raw image data, so the request is multipart). If Facebook refuses it,
+      // nothing was created, so the video is posted again without a cover.
+      const thumb = await this.videoThumbnail(firstPost?.media?.[0]);
+      let response: Response;
+      if (thumb) {
+        const form = new FormData();
+        form.append('file_url', video.file_url);
+        form.append('description', video.description);
+        form.append('published', 'true');
+        form.append(
+          'thumb',
+          new Blob([new Uint8Array(thumb)], { type: 'image/jpeg' }),
+          'cover.jpg'
+        );
+        try {
+          response = await this.fetch(
+            videoUrl,
+            { method: 'POST', body: form },
+            'upload mp4 with cover'
+          );
+        } catch (err) {
+          if (!(err instanceof BadBody)) {
+            throw err;
+          }
+          console.warn(
+            'Facebook refused the video cover, posting without it:',
+            JSON.stringify(err.details)
+          );
+          response = await postVideo();
+        }
+      } else {
+        response = await postVideo();
+      }
+
+      const { id: videoId, permalink_url, ...all } = await response.json();
 
       finalUrl = 'https://www.facebook.com/reel/' + videoId;
       finalId = videoId;

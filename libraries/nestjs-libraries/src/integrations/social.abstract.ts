@@ -176,6 +176,40 @@ export abstract class SocialAbstract {
     return { width, height };
   }
 
+  // The cover frame chosen for a video in the editor (Media Settings → Create
+  // Thumbnail) as a JPEG, at most 1920px on its longest side, or null when none
+  // was chosen or it can't be read: a missing cover never fails a post. The
+  // frame is one of our own uploads, so it's read from disk when it can be
+  // (see localUploadPath).
+  protected async videoThumbnail(media?: {
+    thumbnail?: string;
+  }): Promise<Buffer | null> {
+    if (!media?.thumbnail) {
+      return null;
+    }
+
+    try {
+      return await sharp(
+        await readOrFetch(localUploadPath(media.thumbnail) ?? media.thumbnail)
+      )
+        .rotate()
+        .resize({
+          width: 1920,
+          height: 1920,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+    } catch (err) {
+      console.warn(
+        `Could not read the video's cover frame ${media.thumbnail}, posting without it:`,
+        err instanceof Error ? err.message : err
+      );
+      return null;
+    }
+  }
+
   // Resolves the total byte size of the media without loading it into memory:
   // a HEAD request for remote URLs, statSync for local files (including our
   // own uploads, see localUploadPath).

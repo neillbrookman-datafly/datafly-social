@@ -298,7 +298,10 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     // descriptor for videos, which are streamed chunk-by-chunk from the source
     // instead of being held in memory.
     picture: Buffer | { path: string },
-    type = 'personal' as 'company' | 'personal'
+    type = 'personal' as 'company' | 'personal',
+    // A video's cover frame (see videoThumbnail); LinkedIn picks one itself
+    // when there's none.
+    thumbnail: Buffer | null = null
   ) {
     // Determine the appropriate endpoint based on file type
     const isVideo = hasExtension(fileName, 'mp4');
@@ -318,7 +321,15 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     }
 
     const {
-      value: { uploadUrl, image, video, document, uploadInstructions, ...all },
+      value: {
+        uploadUrl,
+        image,
+        video,
+        document,
+        uploadInstructions,
+        thumbnailUploadUrl,
+        ...all
+      },
     } = await (
       await this.fetch(
         `https://api.linkedin.com/rest/${endpoint}?action=initializeUpload`,
@@ -340,7 +351,7 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
                 ? {
                     fileSizeBytes,
                     uploadCaptions: false,
-                    uploadThumbnail: false,
+                    uploadThumbnail: !!thumbnail,
                   }
                 : {}),
             },
@@ -411,6 +422,36 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
         0,
         true
       );
+    }
+
+    if (isVideo && thumbnail && thumbnailUploadUrl) {
+      // The cover goes up as one raw PUT before the video is finalized. A
+      // failed cover doesn't stop a feed video being served, so it's logged and
+      // the post goes ahead with LinkedIn's own thumbnail.
+      try {
+        await this.fetch(
+          thumbnailUploadUrl,
+          {
+            method: 'PUT',
+            headers: {
+              'X-Restli-Protocol-Version': '2.0.0',
+              'LinkedIn-Version': '202601',
+              Authorization: `Bearer ${accessToken}`,
+              'media-type-family': 'STILLIMAGE',
+              'Content-Type': 'application/octet-stream',
+            },
+            body: new Uint8Array(thumbnail),
+          },
+          'linkedin',
+          0,
+          true
+        );
+      } catch (err) {
+        console.warn(
+          'LinkedIn refused the video cover, posting without it:',
+          err instanceof BadBody ? JSON.stringify(err.details) : err
+        );
+      }
     }
 
     if (isVideo) {
@@ -661,7 +702,10 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
           accessToken,
           personId,
           mediaBuffer,
-          type
+          type,
+          hasExtension(media.path, 'mp4')
+            ? await this.videoThumbnail(media)
+            : null
         );
 
         if (!uploadedMediaId) {
