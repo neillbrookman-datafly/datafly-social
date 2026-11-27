@@ -23,6 +23,21 @@ import imageToPDF from 'image-to-pdf';
 import { Readable } from 'stream';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
 
+// [datafly] A comment LinkedIn refuses with 404 (its post isn't visible
+// everywhere yet) is tried this many more times, this far apart.
+const COMMENT_NOT_FOUND_RETRIES = 3;
+const COMMENT_NOT_FOUND_WAIT_MS = 30_000;
+
+/** Whether a failed LinkedIn call was a 404, from the response BadBody carries. */
+const isNotFound = (err: unknown): boolean => {
+  if (!(err instanceof BadBody)) return false;
+  const [detail] = (err.details ?? []) as Array<{ json?: unknown }>;
+  const json = typeof detail?.json === 'string' ? detail.json : '';
+  // The status field, or LinkedIn's own wording ("Response status 404",
+  // "HTTP Status:404") in case a long reply was cut short.
+  return /"status"\s*:\s*404\b|status:?\s*404\b/i.test(json);
+};
+
 // Personal profiles connect through the Community Management ("approved") app
 // when it's configured, the same app as company pages. LinkedIn only gives
 // renewal tokens to approved apps: through the basic app a profile's
@@ -866,30 +881,45 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     const actor =
       type === 'personal' ? `urn:li:person:${id}` : `urn:li:organization:${id}`;
 
-    const response = await this.fetch(
-      `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(
-        parentPostId
-      )}/comments`,
-      {
-        method: 'POST',
-        headers: {
-        'LinkedIn-Version': '202306',
-        'X-Restli-Protocol-Version': '2.0.0',
-        'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          actor,
-          object: parentPostId,
-          message: {
-            text: this.fixText(post.message),
+    const send = () =>
+      this.fetch(
+        `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(
+          parentPostId
+        )}/comments`,
+        {
+          method: 'POST',
+          headers: {
+            'LinkedIn-Version': '202306',
+            'X-Restli-Protocol-Version': '2.0.0',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
-        }),
-      }
-    );
+          body: JSON.stringify({
+            actor,
+            object: parentPostId,
+            message: {
+              text: this.fixText(post.message),
+            },
+          }),
+        }
+      );
 
-    const { object } = await response.json();
-    return object;
+    // [datafly] LinkedIn can answer 404 for a post it published moments ago
+    // ("Received error for urn:li:ugcPost:… from domain authorization
+    // endpoint: 404", 24 Nov 2026) until the post reaches every part of it.
+    // A 404 means no comment was made, so trying again can't post it twice.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const response = await send();
+        const { object } = await response.json();
+        return object;
+      } catch (err) {
+        if (attempt > COMMENT_NOT_FOUND_RETRIES || !isNotFound(err)) {
+          throw err;
+        }
+        await timer(COMMENT_NOT_FOUND_WAIT_MS);
+      }
+    }
   }
 
   private createPostResponse(

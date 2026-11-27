@@ -7,6 +7,7 @@ import {
   sleep,
   defineSignal,
   setHandler,
+  patched,
 } from '@temporalio/workflow';
 import dayjs from 'dayjs';
 import { Integration } from '@prisma/client';
@@ -15,6 +16,12 @@ import { PostResponse } from '@gitroom/nestjs-libraries/integrations/social/soci
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { TimeoutFailure, TypedSearchAttributes } from '@temporalio/common';
 import { postId as postIdSearchParam } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
+
+// [datafly] How long a first comment waits after its post when the editor set
+// no delay, and the patch id that gates it (never rename: running workflows
+// replay against it).
+const FIRST_COMMENT_WAIT_MS = 60_000;
+const FIRST_COMMENT_WAIT_PATCH = 'datafly-first-comment-wait';
 
 const proxyTaskQueue = (taskQueue: string) => {
   return proxyActivities<PostActivity>({
@@ -379,6 +386,13 @@ export async function postWorkflowV106({
         } else {
           if (postsList[i].delay) {
             await sleep(60000 * Math.max(0, Number(postsList[i].delay ?? 0)));
+          } else if (i === 1 && patched(FIRST_COMMENT_WAIT_PATCH)) {
+            // [datafly] A first comment sent the moment its post is published
+            // can reach the platform before the post does: LinkedIn answered
+            // 404 "not found" for one on 24 Nov 2026. So it waits a minute,
+            // unless the editor set a delay of its own. Behind patched() so
+            // workflows already running replay unchanged.
+            await sleep(FIRST_COMMENT_WAIT_MS);
           }
 
           postsResults.push(
